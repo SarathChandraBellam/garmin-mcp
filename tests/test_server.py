@@ -49,6 +49,12 @@ def test_slim_strip_and_range():
     assert strip_samples(samples, keep=True)["heartRateValues"] == samples["heartRateValues"]
 
     check_range("2026-01-01", "2026-01-31")
+    check_range("2026-01-01", "2026-01-31", 31)  # 31 inclusive days
+    with pytest.raises(Exception, match="32 days"):
+        check_range("2026-01-01", "2026-02-01", 31)  # 32 inclusive days
+    check_range("2025-01-01", "2026-01-01", 366)  # 366 inclusive days
+    with pytest.raises(Exception, match="367 days"):
+        check_range("2024-01-01", "2025-01-01", 366)  # leap year: 367 inclusive days
     with pytest.raises(Exception, match="start_date"):
         check_range("2026-02-01", "2026-01-01")
     with pytest.raises(Exception, match="too long"):
@@ -187,10 +193,13 @@ def test_tools_list_and_get_activities(client: TestClient):
     err, text = _call(client, "get_activities", {"limit": 5})
     assert not err
     body = __import__("json").loads(text)
-    assert body[0]["activity_id"] == 1001
-    assert body[0]["type"] == "running"
-    assert "ownerFullName" not in body[0]
-    assert "startLatitude" not in body[0]
+    assert body["count"] == 1
+    act = body["activities"][0]
+    assert act["activity_id"] == 1001
+    assert act["type"] == "running"
+    assert "ownerFullName" not in act
+    assert "startLatitude" not in act
+    assert "location" not in act
 
 
 @respx.mock

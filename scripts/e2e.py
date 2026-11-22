@@ -76,7 +76,7 @@ def main() -> int:
         return res.get("isError", False), txt
 
     err, txt = call("get_activities", {"limit": 3})
-    acts = json.loads(txt) if not err else []
+    acts = json.loads(txt)["activities"] if not err else []
     newest = "-"
     if acts:
         newest = f"{acts[0].get('type')} on {(acts[0].get('start_local') or '')[:10]}"

@@ -78,3 +78,121 @@ STEPS = [
     {"calendarDate": "2026-01-14", "values": {"totalSteps": 8000}},
     {"calendarDate": "2026-01-15", "values": {"totalSteps": 10234}},
 ]
+
+ACTIVITY_DETAIL = {
+    "activityId": 1001,
+    "activityName": "Morning Run",
+    "activityUUID": "00000000-0000-0000-0000-000000000000",
+    "userProfileId": 999999,
+    "locationName": "Example City",
+    "summaryDTO": {"distance": 5000.0, "startLatitude": 12.3456, "deviceId": 4242},
+}
+
+SLEEP_NULL_SKELETON = {
+    "dailySleepDTO": {
+        "id": None,
+        "calendarDate": "2020-01-01",
+        "sleepTimeSeconds": None,
+        "deepSleepSeconds": None,
+        "sleepFromDevice": False,
+    },
+    "sleepMovement": [],
+    "remSleepData": None,
+}
+
+HRV_DAY = {
+    "hrvSummary": {"calendarDate": "2026-01-15", "lastNightAvg": 48, "weeklyAvg": 50},
+    "hrvReadings": [{"hrvValue": 40 + i % 10, "readingTimeGMT": f"t{i}"} for i in range(66)],
+}
+
+SLEEP_SUMMARIES = [
+    {"calendarDate": "2026-01-14", "sleepTimeSeconds": 25_000, "sleepNeed": {"deviceId": 4242}},
+    {"calendarDate": "2026-01-16", "sleepTimeSeconds": 26_000},  # wake date after the window
+]
+
+WEIGHT_RANGE = {
+    "dailyWeightSummaries": [
+        {
+            "summaryDate": "2026-01-15",
+            "minWeight": 81_200.0,
+            "maxWeight": 81_200.0,
+            "allWeightMetrics": [{"weight": 81_200.0, "date": 1768435200000}],
+        }
+    ],
+    "previousDateWeight": {"calendarDate": "2026-01-01", "weight": 81_900.0},
+    "nextDateWeight": None,
+}
+
+# A night with no recorded sleep: Garmin still fills in the sleep-need descriptors,
+# whose own dates differ from the row's calendarDate.
+SLEEP_SKELETON_NIGHT = {
+    "calendarDate": "2026-01-15",
+    "sleepTimeSeconds": None,
+    "deepSleepSeconds": None,
+    "sleepScores": None,
+    "sleepNeed": {"calendarDate": "2026-01-14", "baseline": 480, "actual": 470},
+    "nextSleepNeed": {"calendarDate": "2026-01-16", "baseline": 480, "actual": 480},
+}
+
+BODY_BATTERY_DAY = {"date": "2026-01-15", "charged": 40, "drained": 55}
+
+WELLNESS_ACTIVITY = {
+    "calendarDate": "2026-01-15",
+    "activityUuid": "00000000-0000-0000-0000-000000000000",
+    "deviceMetaData": {"deviceId": 4242, "deviceTypePk": 1},
+    "activityType": "walking",
+    "duration": 900,
+}
+
+# A daily summary shaped like the v2 endpoint: small scalar summaries plus heavy nested
+# descriptors and event lists. All values are made up.
+DAILY_SUMMARY_FULL = {
+    "calendarDate": "2026-01-15",
+    "includesWellnessData": True,
+    "includesActivityData": False,
+    "calories": {"total": 2100, "active": 400, "bmr": 1700},
+    "heartRate": {"minValue": 48, "maxValue": 160, "restingValue": 52},
+    "movement": {
+        "steps": {"value": 10234, "goal": 8000, "distanceInMeters": 7800},
+        "floors": {"ascended": 10, "descended": 9},
+    },
+    "intensityMinutes": {"moderate": 20, "vigorous": 5, "goal": 150},
+    "stress": {
+        "avgLevel": 30,
+        "maxLevel": 88,
+        "restProportion": 0.3,
+        "lowProportion": 0.1,
+        "mediumProportion": 0.08,
+        "highProportion": 0.02,
+        "uncategorizedProportion": 0.42,
+        "uncategorizedDurationInMillis": 36_288_000,
+        "qualifier": "BALANCED",
+        "levels": [{"start": f"2026-01-15T{h:02d}:00:00.0", "level": h} for h in range(24)],
+    },
+    "bodyBattery": {
+        "charged": 40,
+        "drained": 55,
+        "highest": 90,
+        "lowest": 30,
+        "mostRecent": 45,
+        "events": [
+            {"eventType": "SLEEP", "durationInMillis": 25_000_000, "feedbackType": f"T{i}"}
+            for i in range(8)
+        ],
+        "dynamicFeedbackEvent": {
+            "eventTimestampGmt": "2026-01-15T10:00:00.0",
+            "bodyBatteryLevel": "MODERATE",
+            "feedbackShortType": "DAY_RECOVERING_AND_INACTIVE",
+            "feedbackLongType": "DAY_RECOVERING_AND_INACTIVE_LONG_TEXT",
+        },
+    },
+    "wellnessChronology": {
+        "startTimestampGmt": "2026-01-14T18:30:00.0",
+        "startTimestampLocal": "2026-01-15T00:00:00.0",
+        "endTimestampGmt": "2026-01-15T18:30:00.0",
+        "endTimestampLocal": "2026-01-16T00:00:00.0",
+        "totalDurationInMillis": 86_400_000,
+        "segments": [{"type": "WAKE", "minutes": m} for m in range(20)],
+    },
+    "respiration": {"avgValue": 14, "samples": [[i, 14] for i in range(30)]},
+}
