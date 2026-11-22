@@ -54,6 +54,33 @@ Metric = Literal[
     "wellness_activities",
 ]
 
+Period = Literal[
+    "today",
+    "yesterday",
+    "last_1d",
+    "last_7d",
+    "last_15d",
+    "last_30d",
+    "last_90d",
+    "this_week",
+    "last_week",
+    "this_month",
+    "last_month",
+    "ytd",
+]
+PERIOD_DESCRIPTION = (
+    "Relative window in the caller's timezone: today, yesterday, last_1d (= today), last_7d, "
+    "last_15d, last_30d, last_90d (each ending today, inclusive), this_week / last_week "
+    "(Monday-Sunday), this_month, last_month, ytd. Explicit start_date/end_date win over period."
+)
+OptPeriod = Annotated[Period | None, Field(default=None, description=PERIOD_DESCRIPTION)]
+
+Detail = Literal["summary", "daily", "raw"]
+DETAIL_DESCRIPTION = (
+    "summary (default, smallest): statistics only; daily: plus one value per day; "
+    "raw: plus the PII-free Garmin records the statistics were computed from."
+)
+
 READ_ONLY = ToolAnnotations(read_only_hint=True, open_world_hint=True, idempotent_hint=True)
 
 

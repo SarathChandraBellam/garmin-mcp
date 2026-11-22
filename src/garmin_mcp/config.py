@@ -20,6 +20,14 @@ class Settings(BaseSettings):
     )
     default_timezone: str = Field(default="UTC", validation_alias="DEFAULT_TIMEZONE")
     allow_insecure_http: bool = Field(default=False, validation_alias="ALLOW_INSECURE_HTTP")
+    request_state_secret: SecretStr | None = Field(
+        default=None,
+        validation_alias="REQUEST_STATE_SECRET",
+        description=(
+            "Shared secret (32+ bytes) that seals elicitation request_state, so a client's "
+            "answer can reach any replica. Unset: a per-process key (single instance only)."
+        ),
+    )
     garmin_api_key: SecretStr | None = Field(
         default=None,
         validation_alias="GARMIN_API_KEY",

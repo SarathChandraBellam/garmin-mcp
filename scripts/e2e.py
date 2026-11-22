@@ -93,6 +93,16 @@ def main() -> int:
         ("get_body_composition", {}),
         ("get_training_readiness", {}),
         ("query_stats", {"metric": "steps", "start_date": "2026-11-01"}),
+        ("query_stats", {"metric": "daily_summaries", "period": "last_90d"}),
+        ("get_wellness_overview", {"period": "last_7d"}),
+        ("get_trends", {"metrics": ["steps", "hrv"], "period": "last_30d"}),
+        ("compare_periods", {"metric": "steps", "period_a": "this_week", "period_b": "last_week"}),
+        ("get_activity_summary", {"period": "last_30d"}),
+        ("get_sleep_analysis", {"period": "last_7d"}),
+        ("get_recovery_status", {}),
+        ("get_goal_streaks", {"metric": "steps", "period": "last_30d"}),
+        ("activity_page", {"period": "last_30d"}),
+        ("sleep_series", {"period": "last_30d"}),
     ]:
         err, txt = call(name, args, auth="b")
         preview = f"error: {txt[:120]}" if err else f"ok ({len(txt)} chars)"

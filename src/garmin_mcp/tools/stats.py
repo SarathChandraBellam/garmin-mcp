@@ -2,58 +2,34 @@
 
 from __future__ import annotations
 
+from functools import partial
 from typing import Any
 
+import anyio
+import mcp_types as mt
+from fastmcp import Context
 from fastmcp.exceptions import ToolError
 
-from ..contracts import DateStr, Metric, OptDate, StatsResult, Tz
+from ..contracts import Metric, OptDate, StatsResult, Tz
+from ..contracts.common import OptPeriod
 from ..contracts.stats import SeriesStatus
 from ..sdk import PersonalApi
-from ._context import call, check_range, chunks, date_span, inclusive_days, shift, source, today
+from ._context import call, check_range, date_span, inclusive_days, shift, source, today
+from ._elicit import Elicitor, choice_schema
+from ._fetch import call_count, fetch_series, fetcher
 from ._sanitize import compact, has_data, no_pii
 from ._series import SPECS, MetricSpec, compact_daily_summary, row_date, split_response
+from ._window import resolve_window
+
+LARGE_CALLS = 12  # confirm before a request needs this many Garmin calls
 
 NEAREST_DAYS = 180  # how far around an empty window include_nearest looks
 UNCATEGORIZED_FIELDS = ("uncategorizedProportion", "uncategorizedDurationInMillis")
 
 
-def _fetcher(src: PersonalApi, metric: str) -> Any:
-    return {
-        "steps": src.steps_range,
-        "stress": src.stress_range,
-        "body_battery": src.body_battery_range,
-        "sleep": src.sleep_summaries,
-        "hrv": src.hrv_range,
-        "weight": src.weight_range,
-        "vo2max": src.vo2max_range,
-        "hydration": src.hydration_range,
-        "daily_summaries": src.daily_summaries,
-        "wellness_activities": src.wellness_activities,
-    }[metric]
-
-
-def _fetch(spec: MetricSpec, fn: Any, start: str, end: str) -> tuple[list[Any], list[Any]]:
-    """Fetch [start, end] in Garmin-sized chunks. Returns (in-window rows, outside records)."""
-    rows: list[Any] = []
-    outside: list[Any] = []
-    for cs, ce in chunks(start, end, spec.chunk_days):
-        chunk_rows, hints = split_response(spec, call(fn, cs, ce))
-        for r in chunk_rows:
-            if not isinstance(r, dict) or not has_data(r, spec.drop):
-                continue  # skeleton record (e.g. a night with no sleep): treat as missing
-            d = row_date(r, spec.drop)
-            if d is None or cs <= d <= ce:
-                rows.append(r)
-            elif not start <= d <= end:  # a neighbouring chunk owns in-window dates
-                outside.append(r)
-        outside.extend(hints)
-    return rows, outside
-
-
 def _uncategorized(src: PersonalApi, start: str, end: str) -> dict[str, dict[str, Any]]:
     """calendarDate -> uncategorized stress fields, from daily summaries (31-day chunks)."""
-    spec = SPECS["daily_summaries"]
-    rows, _ = _fetch(spec, src.daily_summaries, start, end)
+    rows, _ = fetch_series(src, ["daily_summaries"], start, end)["daily_summaries"]
     out: dict[str, dict[str, Any]] = {}
     for r in rows:
         d, stress = row_date(r), r.get("stress")
@@ -86,19 +62,24 @@ def _nearest(spec: MetricSpec, fn: Any, start: str, end: str, now: str) -> list[
     ]
 
 
-def query_stats(
+async def query_stats(
     metric: Metric,
-    start_date: DateStr,
+    start_date: OptDate = None,
     end_date: OptDate = None,
     raw: bool = False,
     include_uncategorized: bool = False,
     include_nearest: bool = False,
     tz: Tz = None,
+    period: OptPeriod = None,
+    ctx: Context | None = None,
 ) -> Any:
     """Daily time series for one metric over a date range (start and end inclusive) for trends and comparisons.
 
-    Max 366 days (daily_summaries: 31). Longer windows than Garmin accepts in one call
-    (steps/stress 28 days, body_battery/hydration/sleep 31) are fetched in chunks.
+    Pick the window with start_date/end_date or `period` (last_7d, last_30d, last_90d,
+    this_month, ytd, ...; default last_30d). Max 366 days. Windows longer than Garmin accepts in
+    one call (steps/stress 28 days, body_battery/hydration/sleep/daily_summaries 31) are fetched
+    in parallel chunks. The response's `window` says which dates were covered. For averages and
+    trends, prefer get_trends.
 
     Returns {metric, start_date, end_date, days, status, days_with_data, units, notes, data,
     outside_range}. `data` has one entry per requested date (more if Garmin has several records
@@ -119,11 +100,43 @@ def query_stats(
     if include_nearest and not spec.nearest:
         names = ", ".join(m for m, s in SPECS.items() if s.nearest)
         raise ToolError(f"include_nearest: only supported for {names}")
-    now = today(tz)
-    e = end_date or now
+    w = resolve_window(period, start_date, end_date, tz, default="last_30d")
+    now = today(w.timezone)
+    start_date, e = w.start, w.end
     check_range(start_date, e, spec.max_days, f"query_stats metric '{metric}'")
+    early_notes: list[str] = []
+    calls = call_count([metric], start_date, e)
+    if calls >= LARGE_CALLS:
+        el = Elicitor(
+            ctx,
+            "query_stats",
+            {
+                "metric": metric,
+                "start_date": w.start if period is None else None,
+                "end_date": end_date,
+                "raw": raw,
+                "period": period,
+                "tz": tz,
+            },
+        )
+        ans = await el.ask(
+            "large_range",
+            f"{metric} for {start_date}..{e} needs {calls} calls to Garmin. Continue?",
+            choice_schema(
+                "choice",
+                [("proceed", f"Fetch all {w.days} days"), ("shorten", "Only the last 31 days")],
+                "How much data?",
+            ),
+        )
+        if isinstance(ans, mt.InputRequiredResult):
+            return ans
+        if ans.status == "declined" or (ans.value or {}).get("choice") == "shorten":
+            start_date = date_span(start_date, e)[-31]
+            early_notes.append(f"Shortened to the last 31 days ({start_date}..{e}).")
     src = source()
-    rows, outside = _fetch(spec, _fetcher(src, metric), start_date, e)
+    rows, outside = (
+        await anyio.to_thread.run_sync(partial(fetch_series, src, [metric], start_date, e))
+    )[metric]
 
     def shape(r: Any) -> Any:
         r = no_pii(r)
@@ -147,9 +160,9 @@ def query_stats(
         by_date.setdefault(d, []).append({"calendarDate": d, **shape(r)})
 
     merge_uncategorized = include_uncategorized and bool(by_date)
-    notes = [spec.note] if spec.note and not merge_uncategorized else []
+    notes = ([spec.note] if spec.note and not merge_uncategorized else []) + early_notes
     if merge_uncategorized:
-        extra = _uncategorized(src, start_date, e)
+        extra = await anyio.to_thread.run_sync(partial(_uncategorized, src, start_date, e))
         for d, day_rows in by_date.items():
             for r in day_rows:
                 target = r["values"] if isinstance(r.get("values"), dict) else r
@@ -171,7 +184,9 @@ def query_stats(
         seen = {row_date(o, spec.drop) for o in outside}
         outside += [
             n
-            for n in _nearest(spec, _fetcher(src, metric), start_date, e, now)
+            for n in await anyio.to_thread.run_sync(
+                partial(_nearest, spec, fetcher(src, metric), start_date, e, now)
+            )
             if n["calendarDate"] not in seen
         ]
 
@@ -206,4 +221,5 @@ def query_stats(
         notes=notes,
         data=data,
         outside_range=[shape(o) for o in outside],
+        window=w.model_copy(update={"start": start_date, "days": inclusive_days(start_date, e)}),
     ).model_dump()

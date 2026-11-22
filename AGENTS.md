@@ -48,7 +48,11 @@ src/garmin_mcp/
   auth/          key extraction (keys.py), 401/502 key gate + HTTPS-only middleware
   sdk/           Garmin Personal API client (client.py), key→token exchange (token.py), errors
   contracts/     pydantic models: tool input types, output models, error bodies
-  tools/         MCP tools; _context.py = per-call key/source/errors/dates, _sanitize.py = PII stripping
+  tools/         MCP tools and prompts; _context.py = per-call key/source/errors/dates/parallel,
+                 _window.py = period + caller timezone, _fetch.py = chunked parallel series,
+                 _elicit.py = asking the user, _sanitize.py = PII stripping
+  analytics/     pure statistics behind the analytics tools (no network; unit-tested)
+  apps/          MCP Apps: bundled HTML views and the app-only tools they call
   web/           landing page (`/`), `/info`, `/healthz`; tool table rendered from ALL_TOOLS
 tests/           pytest + respx; fixtures.py holds synthetic Garmin payloads
 scripts/e2e.py   opt-in live end-to-end check (needs a real key; never in CI)
@@ -79,6 +83,8 @@ self-hosting table.
 - **Stateless.** Do not add databases, files, or any durable storage of keys, tokens,
   or user data. The only cache is the in-memory token cache in `sdk/token.py`, keyed
   by a SHA-256 fingerprint of the key.
+  Elicitation `request_state` holds only a tool's arguments and the user's earlier answers;
+  MCP App HTML never contains a key, token or user data.
 - **Never log or echo secrets.** No logging of headers, API keys, or tokens; error
   messages must not include them. `scripts/e2e.py` must never print the key.
 - **Privacy.** Activity output must stay free of coordinates and owner profile fields

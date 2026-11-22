@@ -1,0 +1,108 @@
+/*@include:_head.html*/
+<title>Activity explorer</title>
+</head>
+<body>
+<main>
+  <h1>Activity explorer</h1>
+  <p class="sub" id="window">Waiting for data&hellip;</p>
+  <div id="periods"></div>
+  <section class="grid" id="totals"></section>
+  <h2>Time by type</h2>
+  <div id="groups"></div>
+  <h2>Activities</h2>
+  <table>
+    <caption class="sr-only">Activities, newest first. Press Enter on a row for details.</caption>
+    <thead><tr><th>Date</th><th>Activity</th><th class="num">km</th><th class="num">min</th><th class="num">avg HR</th></tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <button type="button" id="more" hidden>Load more</button>
+  <p class="status" id="status" role="status"></p>
+  <section class="drawer card" id="drawer" hidden tabindex="-1" aria-label="Activity details"></section>
+</main>
+<script>
+/*@include:_bridge.js*/
+/*@include:_charts.js*/
+const PERIODS = [["last_7d", "7 days"], ["last_30d", "30 days"], ["last_90d", "90 days"], ["this_month", "This month"], ["ytd", "Year"]];
+let period = "last_30d", offset = 0, lastRow = null;
+const $ = (id) => document.getElementById(id);
+const zones = (mins) => barList(mins.map((v, i) => ({ label: "Zone " + (i + 1), value: v, cls: "z" + (i + 1), text: fmt(v, 0) + " min" })), { label: "Minutes in each heart-rate zone" });
+
+function tile(label, value, unit) {
+  return el("article", { class: "card" }, el("div", { class: "kpi-label", text: label }),
+    el("div", { class: "kpi-value", text: value }, el("span", { class: "kpi-unit", text: unit || "" })));
+}
+
+function renderSummary(d) {
+  if (!d || !d.totals) return;
+  if (d.window && PERIODS.some(([p]) => p === d.window.period)) period = d.window.period;
+  $("window").textContent = `${d.window.start} – ${d.window.end}`;
+  $("periods").replaceChildren(segmented(PERIODS, period, (p) => { period = p; refresh(); }, "Time window"));
+  const t = d.totals;
+  $("totals").replaceChildren(tile("Activities", fmt(t.count, 0)), tile("Distance", fmt(t.distance_km), "km"),
+    tile("Time", fmt(t.duration_min / 60, 1), "h"), tile("Climb", fmt(t.elevation_gain_m, 0), "m"));
+  const groups = d.group_by === "type" ? d.groups : [];
+  $("groups").replaceChildren(groups.length
+    ? barList(groups.map((g) => ({ label: g.key, value: g.duration_min, text: `${g.count}× · ${fmt(g.duration_min / 60, 1)} h` })), { label: "Time per activity type" })
+    : el("p", { class: "muted", text: "No activities in this window." }));
+}
+
+function row(a) {
+  const open = () => { lastRow = tr; detail(a.activity_id); };
+  const tr = el("tr", { class: "row", tabindex: "0", onclick: open,
+    onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } } },
+    el("td", { text: (a.start_local || "").slice(0, 10) }),
+    el("td", { text: `${a.name || a.type || "Activity"}` }),
+    el("td", { class: "num", text: fmt(a.distance_km, 2) }),
+    el("td", { class: "num", text: fmt(a.duration_min, 0) }),
+    el("td", { class: "num", text: fmt(a.avg_hr, 0) }));
+  return tr;
+}
+
+async function page(reset) {
+  if (reset) { offset = 0; $("rows").replaceChildren(); }
+  setStatus($("status"), "Loading activities…");
+  try {
+    const p = await Bridge.callTool("activity_page", { period, offset });
+    $("rows").append(...p.items.map(row));
+    offset += p.items.length;
+    $("more").hidden = !p.has_more;
+    setStatus($("status"), p.items.length || offset ? "" : "No activities in this window.");
+  } catch (e) { setStatus($("status"), "Could not load activities: " + e.message, true); }
+}
+
+async function refresh() {
+  try { renderSummary(await Bridge.callTool("get_activity_summary", { period })); }
+  catch (e) { setStatus($("status"), e.message, true); }
+  page(true);
+}
+
+function closeDrawer() { $("drawer").hidden = true; if (lastRow) lastRow.focus(); }
+
+async function detail(id) {
+  const drawer = $("drawer");
+  drawer.hidden = false;
+  drawer.replaceChildren(el("p", { class: "muted", text: "Loading…" }));
+  try {
+    const d = await Bridge.callTool("activity_detail", { activity_id: id });
+    const a = d.activity;
+    const splits = d.splits.length
+      ? el("table", {}, el("thead", {}, el("tr", {}, ...["#", "km", "min", "avg HR", "km/h"].map((h, i) => el("th", { class: i ? "num" : "", text: h })))),
+          el("tbody", {}, ...d.splits.map((s) => el("tr", {}, el("td", { text: s.index }), el("td", { class: "num", text: fmt(s.distance_km, 2) }),
+            el("td", { class: "num", text: fmt(s.duration_min, 1) }), el("td", { class: "num", text: fmt(s.avg_hr, 0) }), el("td", { class: "num", text: fmt(s.avg_speed_kmh, 1) })))))
+      : el("p", { class: "muted", text: (d.notes && d.notes[0]) || "No splits recorded." });
+    drawer.replaceChildren(
+      el("h2", { text: `${a.name || a.type || "Activity"} · ${(a.start_local || "").slice(0, 16)}` }),
+      el("p", { class: "muted", text: `${fmt(a.distance_km, 2)} km · ${fmt(a.duration_min, 0)} min · avg HR ${fmt(a.avg_hr, 0)} · ${fmt(a.calories, 0)} kcal · ${fmt(a.elevation_gain_m, 0)} m climb` }),
+      el("h2", { text: "Heart-rate zones" }), zones(d.hr_zone_min),
+      el("h2", { text: "Splits" }), splits,
+      el("p", {}, el("button", { type: "button", text: "Close", onclick: closeDrawer })));
+    drawer.focus();
+  } catch (e) { drawer.replaceChildren(el("p", { class: "status error", text: "Could not load the activity: " + e.message })); }
+}
+
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("drawer").hidden) closeDrawer(); });
+$("more").addEventListener("click", () => page(false));
+Bridge.init("garmin-activities", (d) => { renderSummary(d); page(true); });
+</script>
+</body>
+</html>

@@ -6,6 +6,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
+from .analytics import Window
+
 # ok: records found. empty: none in the window (the metric is known to work for this
 # account, or the endpoint distinguishes "nothing logged"). unknown: none, and Garmin gives
 # the same empty answer whether nothing was logged or the metric is unsupported.
@@ -32,6 +34,7 @@ class StatsResult(BaseModel):
         default_factory=list,
         description="Records Garmin returned for dates outside the window (e.g. nearest weigh-ins).",
     )
+    window: Window | None = None
 
 
 class ActivityList(BaseModel):
@@ -40,3 +43,4 @@ class ActivityList(BaseModel):
     count: int
     activities: list[dict[str, Any]]
     note: str | None = None
+    window: Window | None = None

@@ -26,20 +26,30 @@ and maps errors to `GarminAuthError` / `GarminApiError`. Tools never import
 ## 2. The tool (`src/garmin_mcp/tools/<module>.py`)
 
 Pick the module by topic: `profile.py`, `activities.py`, `wellness.py`
-(per-day health data), `stats.py` (date-range series). Follow this shape:
+(per-day health data), `stats.py` (date-range series), `analytics.py` (tools that
+summarise a window), `app_data.py` (tools only an MCP App calls). Follow this shape:
 
 ```python
 def get_respiration(date: OptDate = None) -> Any:
     """Breathing rate for a day: waking/sleep averages, min and max."""
-    d = date or today()
+    d = date or today(timezone)
     return _or_note(no_pii(call(source().respiration, d)), f"No respiration data for {d}")
 ```
+(with `timezone: OptTimezone = None` as a parameter).
 
 Rules:
 
 - Get the client with `source()` and wrap every Garmin call in `call(...)`.
-- Dates: `DateStr` / `OptDate` from `..contracts`; defaults and ranges with
-  `today()`, `shift()`, `check_range(start, end, max_days)` from `._context`.
+- Dates: `DateStr` / `OptDate` from `..contracts`. "Today" is the caller's: take
+  `timezone: OptTimezone = None` and use `today(timezone)` from `._context`.
+- Date ranges: accept `start_date` / `end_date` **and** `period: OptPeriod = None`, and
+  resolve them with `resolve_window(period, start_date, end_date, timezone, default=...)`
+  from `._window` (explicit dates win, then `period`, then the default). Include the
+  `Window` in the response (`window` field) so the model knows which dates it got.
+- Several Garmin calls: never loop serially. Use `fetch_series` from `._fetch` for
+  daily series (chunked to Garmin's caps, at most 4 in flight) or `parallel([...])`
+  from `._context`. In an `async` tool, run blocking Garmin I/O with
+  `await anyio.to_thread.run_sync(...)`.
 - Constrain other inputs with `Annotated[..., Field(...)]` (bounds, max_length).
   A fixed set of choices is a `Literal` in `contracts/common.py`.
 - Always pass output through `no_pii(...)`. Collapse large per-sample arrays with
@@ -49,12 +59,32 @@ Rules:
   `PII_FIELDS` in `tools/_sanitize.py`.
 - The tool must be read-only. Never add one that writes to Garmin.
 
+**Analytics tools** (answers, not payloads): put the maths in `src/garmin_mcp/analytics/`
+as pure functions with unit tests (no network), give the tool a typed output model in
+`contracts/analytics.py` with a `summary: str` and `notes: list[str]`, return
+`result(model)` (structured content plus a text summary), take
+`detail: Detail = "summary"`, and add the model to `OUTPUT_MODELS` so clients get an
+output schema. Daily metrics for `get_trends` / `compare_periods` are one `MetricDef`
+in `analytics/extract.py`.
+
+**Asking the user** (`tools/_elicit.py`): only when it helps, never for secrets, and
+every call must still work with no answer. Create `el = Elicitor(ctx, "<tool>", args)`,
+then `ans = await el.ask(key, message, schema)`; if `ans` is an `InputRequiredResult`
+return it unchanged, otherwise use `ans.value` or fall back to a default and add a
+note. `args` end up in `request_state`: tool arguments only, never a key or Garmin data.
+
+**MCP Apps:** an app is `src/garmin_mcp/apps/templates/<name>.html` plus an `AppSpec`
+in `apps/__init__.py` naming the tool that opens it and the app-only tools it calls.
+Insert data with `textContent` only, load nothing from outside, and extend the browser
+smoke test in `tests/test_apps.py`.
+
 For a new `query_stats` metric instead of a new tool: add the name to `Metric` in
 `contracts/common.py` and to the dispatch dict in `tools/stats.py`.
 
 ## 3. Register it (`src/garmin_mcp/tools/__init__.py`)
 
-Add the function to `ALL_TOOLS` (wellness tools go in `wellness.TOOLS`).
+Add the function to `ALL_TOOLS` (wellness tools go in `wellness.TOOLS`, analytics tools
+in `analytics.TOOLS`; app-only tools go in an `AppSpec` instead).
 Registration applies the `READ_ONLY` annotations and the landing page's tool
 table picks it up automatically.
 

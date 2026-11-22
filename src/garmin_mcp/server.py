@@ -10,9 +10,11 @@ from __future__ import annotations
 from typing import Any
 
 from fastmcp import FastMCP
+from mcp.server.request_state import RequestStateSecurity
 from starlette.applications import Starlette
 from starlette.types import Receive, Scope, Send
 
+from .apps import opening_app, register_apps
 from .auth import GarminKeyGate, HttpsOnlyMiddleware
 from .config import Settings, get_settings
 from .tools import register_all
@@ -24,14 +26,32 @@ INSTRUCTIONS = (
     "Live, read-only access to the caller's own Garmin Connect data via the official Garmin "
     "Personal API. Nothing is cached or stored server-side; each call fetches from Garmin. "
     "Dates are YYYY-MM-DD in the user's local calendar; pass tz (IANA name) or the "
-    "X-Timezone header so 'today' matches the user's day."
+    "X-Timezone header so 'today' matches the user's day. Prefer the analytics tools "
+    "(get_wellness_overview, get_trends, compare_periods, get_activity_summary, "
+    "get_sleep_analysis, get_recovery_status, get_goal_streaks) with a period such as "
+    "last_7d or last_30d over raw series."
 )
 
 
-def create_mcp() -> FastMCP:
-    mcp = FastMCP(name="garmin-mcp", instructions=INSTRUCTIONS)
+def _request_state_security(settings: Settings) -> RequestStateSecurity | None:
+    """Shared-key sealing for elicitation request_state when REQUEST_STATE_SECRET is set."""
+    secret = settings.request_state_secret
+    if secret is None or not secret.get_secret_value():
+        return None
+    if len(secret.get_secret_value().encode()) < 32:
+        raise ValueError("REQUEST_STATE_SECRET must be at least 32 bytes")
+    return RequestStateSecurity(keys=[secret.get_secret_value()], audience="garmin-mcp")
+
+
+def create_mcp(settings: Settings | None = None) -> FastMCP:
+    mcp = FastMCP(
+        name="garmin-mcp",
+        instructions=INSTRUCTIONS,
+        request_state_security=_request_state_security(settings or get_settings()),
+    )
     mcp.add_middleware(CleanValidationErrors())
-    register_all(mcp)
+    register_all(mcp, app_for=opening_app)
+    register_apps(mcp)
     for route in page_routes:
         mcp.custom_route(route.path, methods=sorted(route.methods or ["GET"]))(route.endpoint)
     return mcp

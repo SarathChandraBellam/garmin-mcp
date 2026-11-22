@@ -194,7 +194,7 @@ footer p { margin: 0 0 8px; max-width: 80ch; }
   <section id="tools">
     <div class="wrap">
       <h2>Tools</h2>
-      <p class="sub">All tools are read-only. Dates are <code>YYYY-MM-DD</code>. Coordinates and owner profile fields are removed from the output.</p>
+      <p class="sub">All tools are read-only. Dates are <code>YYYY-MM-DD</code>, or pass a <code>period</code> such as <code>last_7d</code>, <code>last_30d</code>, <code>this_month</code> or <code>ytd</code>. Send <code>X-Timezone: Europe/Berlin</code> (or a <code>timezone</code> argument) so &ldquo;today&rdquo; is your day. Coordinates and owner profile fields are removed from the output.</p>
       <div class="card table-wrap">
         <table>
           <thead><tr><th>Tool</th><th>What it returns</th></tr></thead>
@@ -203,6 +203,8 @@ $tools_rows
           </tbody>
         </table>
       </div>
+      <p class="sub" style="margin-top:16px"><strong>Prompts:</strong> $prompts_list.</p>
+      <p class="sub"><strong>Apps</strong> (interactive views in hosts that support MCP Apps; no maps, no outside network access): $apps_list.</p>
     </div>
   </section>
 
