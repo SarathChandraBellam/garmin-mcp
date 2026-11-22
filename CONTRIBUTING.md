@@ -46,7 +46,10 @@ collected that way. CI does not run this.
 3. Follow the existing style (type hints, no secret logging).
 4. Update `CHANGELOG.md` under `[Unreleased]` and docs if the public interface
    changes.
-5. Fill in the pull request template.
+5. Use a [Conventional Commits](https://www.conventionalcommits.org) title
+   (`feat:`, `fix:`, `docs:`, … with `!` for breaking changes) and fill in the pull
+   request template, including **Release impact**. Don't bump the version in a
+   feature PR; see "Versioning and releases" in [AGENTS.md](AGENTS.md).
 
 By contributing you agree that your work is licensed under the MIT License
 (see `LICENSE`).

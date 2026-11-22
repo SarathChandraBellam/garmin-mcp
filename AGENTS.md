@@ -65,6 +65,7 @@ Read the matching skill before starting one of these tasks:
 | [`run-checks`](.agents/skills/run-checks/SKILL.md) | Run and fix the CI checks (black, ruff, mypy, pytest) |
 | [`add-mcp-tool`](.agents/skills/add-mcp-tool/SKILL.md) | Add or change a read-only MCP tool: SDK helper, tool, registration, tests, docs |
 | [`bump-dependency`](.agents/skills/bump-dependency/SKILL.md) | Add or upgrade a dependency with uv (including the pinned `fastmcp`) |
+| [`release`](.agents/skills/release/SKILL.md) | Decide if a release is needed, pick the version bump, cut and tag it |
 
 New skills go in `.agents/skills/<name>/SKILL.md` with `name` and `description`
 front matter. Edit `AGENTS.md`, never `CLAUDE.md`; don't replace the symlinks with copies.
@@ -97,8 +98,28 @@ self-hosting table.
   and full type hints; `src/` must pass mypy.
 - Keep modules small and focused; follow the existing patterns rather than adding
   abstraction layers.
-- Commits/PRs: focused changes, fill in `.github/PULL_REQUEST_TEMPLATE.md`, update
-  `CHANGELOG.md` when the public interface changes.
+- Commits/PRs: focused changes, Conventional Commit titles, fill in
+  `.github/PULL_REQUEST_TEMPLATE.md` (including **Release impact**), and add user-facing
+  changes under `## [Unreleased]` in `CHANGELOG.md`.
+
+## Versioning and releases
+
+Semantic versioning, `X.Y.Z` = MAJOR.MINOR.PATCH, tagged `vX.Y.Z`:
+
+- **No release** when only non-code changed: docs (`*.md`), `.agents/`, `.claude/`,
+  `tests/`, `scripts/`, `.github/`, lint/dev-tool config, dev-only dependencies.
+- **Major (X)**: a breaking change for users — a tool or parameter removed or renamed,
+  a tool's output shape changed, auth headers/error codes, env vars or routes changed,
+  a Python version dropped.
+- **Minor (Y)**: backward-compatible features — a new tool, optional parameter,
+  `query_stats` metric, env var or output field.
+- **Patch (Z)**: backward-compatible fixes, privacy/security fixes, runtime
+  dependency bumps.
+
+Use Conventional Commit prefixes in commit and PR titles (`feat:`, `fix:`, `docs:`,
+`chore:`, `ci:`, `test:`, `refactor:`; add `!` for breaking, e.g. `feat!:`) so the
+release impact is obvious. Never bump the version in a feature PR; releases are
+separate `chore(release): vX.Y.Z` PRs made with the `release` skill.
 
 ## Roadmap context
 

@@ -12,10 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `AGENTS.md` with build/test commands, layout and hard rules for AI coding agents.
   `CLAUDE.md` is a symlink to it.
 - Agent skills in `.agents/skills/` (`run-checks`, `add-mcp-tool`,
-  `bump-dependency`); `.claude/skills` is a symlink to that directory.
+  `bump-dependency`, `release`); `.claude/skills` is a symlink to that directory.
 - `.claude/settings.json` pre-approves the uv check commands, blocks reading
   `.env`/`.secrets/`, and installs dependencies at the start of Claude Code on the
   web sessions.
+- Release guidance: semantic versioning rules and a release-impact section in the
+  pull request template.
 
 ## [0.2.0] - 2026-11-22
 
