@@ -1,61 +1,132 @@
 /*@include:_head.html*/
 <title>Wellness dashboard</title>
+<style>
+.hero { display: grid; grid-template-columns: minmax(210px, 260px) minmax(0, 1fr); gap: 12px; }
+:root[data-size="compact"] .hero { grid-template-columns: minmax(0, 1fr); }
+.hero .battery { display: grid; justify-items: center; align-content: start; gap: 10px; text-align: center; }
+.hero .battery .kpi-label { justify-self: start; }
+.hero .battery .kpi-foot { justify-content: center; }
+:root[data-size="compact"] .hero .battery { grid-template-columns: auto minmax(0, 1fr); justify-items: start; text-align: left; align-items: center; }
+:root[data-size="compact"] .hero .battery .kpi-label { grid-column: 1 / -1; }
+:root[data-size="compact"] .hero .battery .kpi-foot { justify-content: flex-start; flex-direction: column; align-items: flex-start; }
+.sleep-top { display: flex; justify-content: space-between; align-items: flex-end; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.tile .chart-slot { margin-top: 8px; }
+</style>
 </head>
 <body>
 <main>
-  <h1>Wellness dashboard</h1>
-  <p class="sub" id="window">Waiting for data&hellip;</p>
-  <div id="periods"></div>
-  <section class="grid" id="tiles" aria-live="polite"></section>
-  <p class="status" id="status" role="status"></p>
+  <header class="app-head">
+    <div class="titles"><span class="app-icon" data-icon="pulse"></span>
+      <div><h1>Wellness</h1><p class="sub" id="window"><span class="sk title"></span></p></div></div>
+    <div id="periods"></div>
+  </header>
+  <div id="error"></div>
+  <section class="hero" id="hero" aria-label="Featured"><div class="sk block"></div><div class="sk block"></div></section>
+  <section class="grid four" id="tiles" aria-label="More metrics"><div class="sk tile"></div><div class="sk tile"></div><div class="sk tile"></div><div class="sk tile"></div></section>
+  <p class="sr-only" id="status" role="status"></p>
 </main>
 <script>
-/*@include:_bridge.js*/
-/*@include:_charts.js*/
+/*@include:_lib.js*/
 const META = {
-  sleep_hours: ["Sleep", true], resting_hr: ["Resting HR", false], hrv: ["Overnight HRV", true],
-  stress: ["Stress", false], body_battery: ["Body Battery", true], steps: ["Steps", true],
+  sleep_hours: ["Sleep", true, "moon", 1], resting_hr: ["Resting HR", false, "heart", 0], hrv: ["Overnight HRV", true, "wave", 0],
+  stress: ["Stress", false, "gauge", 0], body_battery: ["Body Battery", true, "battery", 0], steps: ["Steps", true, "steps", 0],
 };
-const PERIODS = [["last_1d", "1 day"], ["last_7d", "7 days"], ["last_15d", "15 days"], ["last_30d", "30 days"], ["last_90d", "90 days"]];
-let period = "last_7d";
+const PERIODS = periodOptions(["last_1d", "last_7d", "last_15d", "last_30d", "last_90d"]);
+let period = "last_7d", seq = 0, last = null;
 const $ = (id) => document.getElementById(id);
+
+function label(m) {
+  const [name, , ic] = META[m.metric] || [m.metric, true, "pulse"];
+  return el("div", { class: "kpi-label" }, icon(ic), el("span", { text: name }),
+    m.unit === "0-100" ? el("span", { class: "kpi-scale", text: "· 0–100 scale" }) : null);
+}
+function value(m, big) {
+  const digits = (META[m.metric] || [])[3];
+  return el("div", { class: "kpi-value" + (big ? " big" : "") }, fmt(m.average, digits),
+    unitText(m.unit) ? el("span", { class: "kpi-unit", text: unitText(m.unit) }) : null);
+}
+function delta(m, prevDays) {
+  const [, higherBetter] = META[m.metric] || [m.metric, true];
+  const digits = (META[m.metric] || [])[3];
+  return deltaChip(m.change_pct, higherBetter, has(m.previous_average) ? `Previous ${prevDays} days: ${fmt(m.previous_average, digits)}` : null);
+}
+function range(m) {
+  const digits = (META[m.metric] || [])[3];
+  const f = m.metric === "steps" ? shortNum : (v) => fmt(v, digits);
+  return has(m.minimum) ? el("span", { class: "nowrap", text: `Range ${f(m.minimum)}–${f(m.maximum)}` }) : null;
+}
+/* Today is in progress: a cumulative metric like steps would read as a drop, so leave it out. */
+const series = (m) => (m.daily || []).map((d) => (d.partial && m.metric === "steps" ? null : d.value));
+function xLabels(m) {
+  const d = m.daily || [];
+  if (d.length < 2) return [];
+  const out = [[0, shortDate(d[0].date), "start"], [d.length - 1, shortDate(d[d.length - 1].date), "end"]];
+  if (d.length >= 7) out.push([Math.floor((d.length - 1) / 2), shortDate(d[Math.floor((d.length - 1) / 2)].date)]);
+  return out;
+}
 
 function render(data) {
   if (!data || !data.metrics) return;
+  last = data;
   if (data.window && PERIODS.some(([p]) => p === data.window.period)) period = data.window.period;
-  $("window").textContent = `${data.window.start} – ${data.window.end} (${data.window.days} days, ${data.window.timezone}) vs the ${data.previous_window.days} days before`;
+  const w = data.window, pd = data.previous_window ? data.previous_window.days : w.days;
+  setWindow(`${windowText(w)} vs the ${pd} days before`, `Time zone: ${w.timezone}`);
   $("periods").replaceChildren(segmented(PERIODS, period, load, "Time window"));
-  const tiles = data.metrics.map((m) => {
-    const [label, higherBetter] = META[m.metric] || [m.metric, true];
-    const delta = m.change_pct;
-    const good = delta === null || delta === undefined || delta === 0 ? "" : (delta > 0) === higherBetter ? "good" : "bad";
-    const arrow = delta > 0 ? "↑" : delta < 0 ? "↓" : "";
-    const values = (m.daily || []).map((d) => (d.partial ? null : d.value));
-    return el("article", { class: "card", "aria-label": label },
-      el("div", { class: "kpi-label", text: label }),
-      el("div", { class: "kpi-value", text: fmt(m.average) }, el("span", { class: "kpi-unit", text: m.unit })),
-      el("div", { class: "delta " + good, text: delta === null || delta === undefined ? "no previous data" : `${arrow} ${pctText(delta)} vs previous` }),
-      el("div", { class: "muted", text: `min ${fmt(m.minimum)} · max ${fmt(m.maximum)}` }),
-      values.length ? lineChart([{ values }], { label: `${label} per day`, height: 44 }) : null);
-  });
-  $("tiles").replaceChildren(...tiles);
+  $("error").replaceChildren();
+  const by = Object.fromEntries(data.metrics.map((m) => [m.metric, m]));
+  const hero = [];
+  if (by.body_battery) {
+    const m = by.body_battery;
+    hero.push(el("article", { class: "card battery enter", "aria-label": "Body Battery" }, label({ metric: "body_battery" }),
+      ring(m.average, 100, { label: `Body Battery average ${fmt(m.average, 0)} of 100`, caption: "avg of 100", size: 136 }),
+      el("div", { class: "kpi-foot" }, delta(m, pd), range(m))));
+  }
+  if (by.sleep_hours) {
+    const m = by.sleep_hours;
+    hero.push(el("article", { class: "card enter", "aria-label": "Sleep" },
+      el("div", { class: "sleep-top" }, el("div", { class: "kpi" }, label(m), value(m, true)),
+        el("div", { class: "kpi-foot" }, delta(m, pd), range(m))),
+      chartSlot((wd) => lineChart([{ values: series(m), area: true }], { label: `Sleep hours per night, ${windowText(w)}`, width: wd, height: 150, axes: true, xLabels: xLabels(m) }), 150)));
+  }
+  $("hero").replaceChildren(...hero);
+  $("tiles").replaceChildren(...["steps", "resting_hr", "hrv", "stress"].filter((k) => by[k]).map((k, i) => {
+    const m = by[k];
+    const node = el("article", { class: "card tile kpi enter", "aria-label": META[k][0] }, label(m), value(m),
+      el("div", { class: "kpi-foot" }, delta(m, pd), range(m)),
+      chartSlot((wd) => lineChart([{ values: series(m), area: true }], { label: `${META[k][0]} per day`, width: wd, height: 52 }), 52));
+    node.style.animationDelay = i * 40 + "ms";
+    return node;
+  }));
+  requestAnimationFrame(() => paintCharts());
 }
 
 async function load(p) {
   period = p;
-  setStatus($("status"), "Loading…");
+  const mine = ++seq;
+  if (last) $("periods").replaceChildren(segmented(PERIODS, period, load, "Time window"));
+  setBusy([$("hero"), $("tiles")], true);
+  announce("Loading " + periodName(p).toLowerCase() + "…");
   try {
-    render(await Bridge.callTool("dashboard_data", { period }));
-    setStatus($("status"), "");
+    const data = await Bridge.callTool("dashboard_data", { period });
+    if (mine !== seq) return;
+    render(data);
+    announce("Showing " + windowText(data.window));
   } catch (e) {
-    setStatus($("status"), "Could not load data: " + e.message, true);
+    if (mine !== seq) return;
+    if (!last) { setWindow(""); $("hero").replaceChildren(); $("tiles").replaceChildren(); }
+    $("error").replaceChildren(errorNotice("Could not load your wellness data", e, () => load(period)));
+    announce("Could not load data");
+  } finally {
+    if (mine === seq) setBusy([$("hero"), $("tiles")], false);
   }
 }
 
+mountChrome();
 Bridge.init("garmin-dashboard", (data) => {
-  render(data);
   const hasDaily = data && data.metrics && data.metrics.some((m) => m.daily);
-  if (!hasDaily) load(period);
+  const named = data && data.window && PERIODS.some(([p]) => p === data.window.period);
+  if (hasDaily || (data && data.metrics && !named)) render(data);
+  if (!hasDaily && (named || !data || !data.metrics)) load(named ? data.window.period : period);
 });
 </script>
 </body>

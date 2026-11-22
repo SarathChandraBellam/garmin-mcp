@@ -1,0 +1,70 @@
+/* garmin-mcp design tokens: shared by the five MCP App views and the landing page.
+   Brand values live in --gm-*; the semantic tokens below prefer the MCP Apps host style
+   variables (2026-01-26 theming: --color-*, --font-*, --border-radius-*, --shadow-*) and fall
+   back to the brand values, so a view looks right with or without host styles. */
+:root {
+  color-scheme: light dark;
+  --gm-bg: #f7f8fa; --gm-surface: #ffffff; --gm-surface-2: #f0f2f5; --gm-fg: #12161c;
+  --gm-muted: #5b6573; --gm-border: #dfe3e8; --gm-accent: #0a6ce0; --gm-accent-fg: #ffffff;
+  --gm-accent-soft: #e6f1ff; --gm-good: #0f7b4b; --gm-bad: #c62f3b; --gm-neutral: #5b6573;
+  --gm-good-soft: #e3f5ec; --gm-bad-soft: #fdecee; --gm-neutral-soft: #eef0f3;
+  --gm-code-bg: #0f1720; --gm-code-fg: #e6edf3; --gm-warn: #8a5a00; --gm-warn-soft: #fff4d6;
+  --gm-shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 8px 24px rgba(16, 24, 40, .06);
+  --gm-s0: #0a6ce0; --gm-s1: #d9480f;
+  --gm-deep: #1e3a8a; --gm-light: #60a5fa; --gm-rem: #7c3aed; --gm-awake: #ea580c;
+  --gm-z1: #93c5fd; --gm-z2: #34d399; --gm-z3: #fbbf24; --gm-z4: #f97316; --gm-z5: #dc2626;
+  --gm-key-edge: rgba(15, 23, 42, .18);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --gm-bg: #0b1120; --gm-surface: #111a2b; --gm-surface-2: #172238; --gm-fg: #e8edf3;
+    --gm-muted: #9aa6b4; --gm-border: #24324a; --gm-accent: #4ea1ff; --gm-accent-fg: #06121f;
+    --gm-accent-soft: #12263d; --gm-good: #3ccf8e; --gm-bad: #ff6b76; --gm-neutral: #9aa6b4;
+    --gm-good-soft: #0f2a22; --gm-bad-soft: #2d1519; --gm-neutral-soft: #1a2436;
+    --gm-code-bg: #070a0e; --gm-warn: #fbbf24; --gm-warn-soft: #2e2410; --gm-shadow: 0 1px 2px rgba(0, 0, 0, .3);
+    --gm-s0: #4ea1ff; --gm-s1: #fb923c;
+    --gm-deep: #3b82f6; --gm-light: #93c5fd; --gm-rem: #a78bfa; --gm-awake: #fb923c;
+    --gm-key-edge: rgba(255, 255, 255, .16);
+  }
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --gm-bg: #0b1120; --gm-surface: #111a2b; --gm-surface-2: #172238; --gm-fg: #e8edf3;
+  --gm-muted: #9aa6b4; --gm-border: #24324a; --gm-accent: #4ea1ff; --gm-accent-fg: #06121f;
+  --gm-accent-soft: #12263d; --gm-good: #3ccf8e; --gm-bad: #ff6b76; --gm-neutral: #9aa6b4;
+  --gm-good-soft: #0f2a22; --gm-bad-soft: #2d1519; --gm-neutral-soft: #1a2436;
+  --gm-code-bg: #070a0e; --gm-warn: #fbbf24; --gm-warn-soft: #2e2410; --gm-shadow: 0 1px 2px rgba(0, 0, 0, .3);
+  --gm-s0: #4ea1ff; --gm-s1: #fb923c;
+  --gm-deep: #3b82f6; --gm-light: #93c5fd; --gm-rem: #a78bfa; --gm-awake: #fb923c;
+  --gm-key-edge: rgba(255, 255, 255, .16);
+}
+:root {
+  --bg: var(--color-background-primary, var(--gm-bg));
+  --surface: var(--color-background-secondary, var(--gm-surface));
+  --surface-2: var(--color-background-tertiary, var(--gm-surface-2));
+  --fg: var(--color-text-primary, var(--gm-fg));
+  --muted: var(--color-text-secondary, var(--gm-muted));
+  --border: var(--color-border-primary, var(--gm-border));
+  --accent: var(--gm-accent);
+  --accent-fg: var(--gm-accent-fg);
+  --ring: var(--color-ring-primary, var(--gm-accent));
+  --accent-soft: var(--color-background-info, var(--gm-accent-soft));
+  --good: var(--color-text-success, var(--gm-good));
+  --bad: var(--color-text-danger, var(--gm-bad));
+  --good-soft: var(--color-background-success, var(--gm-good-soft));
+  --bad-soft: var(--color-background-danger, var(--gm-bad-soft));
+  --neutral-soft: var(--gm-neutral-soft);
+  --warn: var(--color-text-warning, var(--gm-warn));
+  --warn-soft: var(--color-background-warning, var(--gm-warn-soft));
+  --font-ui: var(--font-sans, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif);
+  --font-code: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+  --radius: var(--border-radius-lg, 14px);
+  --radius-sm: var(--border-radius-md, 10px);
+  --radius-xs: var(--border-radius-sm, 6px);
+  --shadow: var(--shadow-sm, var(--gm-shadow));
+  --text-xs: 12px; --text-sm: 13px; --text-md: 14px; --text-lg: 16px; --text-xl: 20px;
+  --text-2xl: 28px; --text-hero: 40px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px; --space-5: 24px;
+  --ease: cubic-bezier(.2, .7, .2, 1); --dur: 220ms;
+}

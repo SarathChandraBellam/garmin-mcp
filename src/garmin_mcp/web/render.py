@@ -12,9 +12,15 @@ def _read(name: str) -> str:
     return (files(__package__) / "templates" / name).read_text(encoding="utf-8")
 
 
+@cache
+def tokens() -> str:
+    """The design tokens shared with the MCP App views (one source for both)."""
+    return (files("garmin_mcp.apps") / "templates" / "_tokens.css").read_text(encoding="utf-8")
+
+
 def render(name: str, **values: str) -> str:
     """Render ``templates/<name>``. Values are inserted verbatim: escape them first."""
-    return Template(_read(name)).substitute(css=_read("base.css"), **values)
+    return Template(_read(name)).substitute(css=tokens() + _read("base.css"), **values)
 
 
 SECURITY_HEADERS = {
