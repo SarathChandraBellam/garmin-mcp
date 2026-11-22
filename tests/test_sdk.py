@@ -3,16 +3,17 @@ from __future__ import annotations
 import httpx
 import pytest
 import respx
-from garmin_mcp.garmin import (
+
+from garmin_mcp.sdk import (
     PERSONAL_BASE,
     TOKEN_PATH,
     GarminApiError,
     GarminAuthError,
     PersonalApi,
-    _jwt_exp,
     key_fingerprint,
     personal_token,
 )
+from garmin_mcp.sdk.token import _jwt_exp
 from tests.conftest import fake_jwt
 from tests.fixtures import ACTIVITY, PROFILE
 

@@ -3,6 +3,7 @@
 [![CI](https://github.com/SarathChandraBellam/garmin-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/SarathChandraBellam/garmin-mcp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-2025--06--18-blue)](https://modelcontextprotocol.io)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org)
 
 A **stateless, bring-your-own-key** [Model Context Protocol](https://modelcontextprotocol.io)
@@ -10,8 +11,9 @@ server that lets an MCP client (Cursor, Claude, and others) read **your** Garmin
 Connect data through Garmin's official **Personal API**.
 
 The server never stores your key or your fitness data. Each request carries the
-key, the server exchanges it for a short-lived Garmin token (held in memory only),
-calls Garmin, returns the result, and forgets it.
+key (like a GitHub personal access token), the server exchanges it for a
+short-lived Garmin token (held in memory only), calls Garmin, returns the result,
+and forgets it.
 
 ## Why this exists
 
@@ -25,6 +27,7 @@ database or handing a password to a third party.
 
 - Official Garmin Connect Personal API (no password login, no unofficial scraping)
 - Multi-tenant: every client sends **its own** key; the deployment holds none
+- MCP endpoint at **`/mcp`**; product page with an API-key guide at **`/`**
 - Stateless Streamable HTTP (`stateless_http=True`, JSON responses, MCP 2025-06-18)
 - Also runs locally over **stdio**
 - Read-only tools for activities, daily summaries, sleep, heart rate, HRV, body
@@ -38,7 +41,14 @@ database or handing a password to a third party.
 |---|---|
 | Nothing durable. A Garmin bearer token may sit in memory on a warm instance, keyed by SHA-256 of the API key, and dies with the process. | Your Personal API key on every HTTP request (`X-Garmin-Api-Key` or `Authorization: Bearer`), or `GARMIN_API_KEY` for local stdio. |
 
-Headers are never logged. Create, rotate, and revoke keys in Garmin Connect.
+A missing key returns `401 missing_garmin_api_key`, and a key Garmin rejects
+returns `401 invalid_garmin_api_key`. If Garmin is unreachable the server
+returns `502` (or `429` when Garmin rate-limits). Headers are never logged.
+Create, rotate, and revoke keys in Garmin Connect.
+
+**Limitation:** there is no OAuth sign-in, so clients that can't send a custom
+header (Claude.ai on the web and mobile, for example) can't connect yet. Adding
+OAuth later is sketched in [PLAN-garmin-official-oauth.md](PLAN-garmin-official-oauth.md).
 
 ## Disclaimer
 
@@ -57,9 +67,10 @@ you are authorised to use (typically your own).
 
 ## Quick start
 
-### Hosted HTTP (any MCP client that supports a URL + headers)
+### Hosted HTTP
 
-Endpoint: `https://<DEPLOY_URL>/mcp`
+Endpoint: `https://<DEPLOY_URL>/mcp`. Open `https://<DEPLOY_URL>/` for the
+API-key guide and copy-ready snippets.
 
 ```http
 X-Garmin-Api-Key: <your key>
@@ -67,7 +78,7 @@ X-Garmin-Api-Key: <your key>
 
 (`Authorization: Bearer <your key>` is also accepted.)
 
-**Cursor** (`~/.cursor/mcp.json` or project `.cursor/mcp.json`):
+**Cursor** (`~/.cursor/mcp.json`):
 
 ```json
 {
@@ -109,9 +120,8 @@ claude mcp add --transport http garmin https://<DEPLOY_URL>/mcp \
 From a checkout:
 
 ```bash
-pip install -e .
-GARMIN_API_KEY=<your key> garmin-mcp
-# or: GARMIN_API_KEY=<your key> fastmcp run garmin_mcp/server.py:mcp
+uv sync
+GARMIN_API_KEY=<your key> uv run garmin-mcp
 ```
 
 **Cursor / Claude Desktop:**
@@ -130,7 +140,7 @@ GARMIN_API_KEY=<your key> garmin-mcp
 
 `uvx --from git+…` needs git access to the repository (public, or an SSH/HTTPS
 credential if it is still private). Otherwise install from a local clone and
-point `command` at that environment's `garmin-mcp`.
+use `"command": "uv", "args": ["--directory", "/path/to/garmin-mcp", "run", "garmin-mcp"]`.
 
 ## Tools (all read-only)
 
@@ -156,35 +166,53 @@ from activity output.
 
 ## Self-hosting
 
-The HTTP server is a standard ASGI app at `garmin_mcp.asgi:app`. It needs no
-environment variables (optional: `DEFAULT_TIMEZONE`, an IANA name; default
-`UTC`). Serve it **only over HTTPS** in production. The app works
-whether or not the host sends ASGI lifespan events.
+The HTTP server is a standard ASGI app at `garmin_mcp.asgi:app`. Serve it **only
+over HTTPS** in production. The app works whether or not the host sends ASGI
+lifespan events.
 
 ```bash
-pip install -e .
-uvicorn garmin_mcp.asgi:app --host 0.0.0.0 --port 8000
+uv sync --no-dev
+uv run uvicorn garmin_mcp.asgi:app --host 0.0.0.0 --port 8000 --proxy-headers
 ```
 
-Point MCP clients at `https://<your-host>/mcp` and send `X-Garmin-Api-Key`.
-Any ASGI host that can run that module works (uvicorn, gunicorn with
-Uvicorn workers, and so on). Docker is optional; a typical image just
-installs the package and uses the same `uvicorn` command as the process.
+| Variable | Default | Purpose |
+|---|---|---|
+| `PUBLIC_BASE_URL` | the request's origin | Public origin shown in the landing-page snippets. Set it if your proxy rewrites the host. |
+| `DEFAULT_TIMEZONE` | `UTC` | IANA zone used to decide what "today" means. |
+| `ALLOW_INSECURE_HTTP` | unset | `1` turns off the HTTPS-only gate. Use it only for local development. |
+| `GARMIN_API_KEY` | unset | Used only in stdio mode. |
+
+Routes: `/` (product page and API-key guide), `/mcp` (MCP Streamable HTTP),
+`/info` (JSON) and `/healthz`.
+
+## Project layout
+
+```
+src/garmin_mcp/
+  config.py        pydantic-settings: every environment variable in one place
+  server.py        FastMCP instance, ASGI App, stdio main()
+  contracts/       pydantic models: tool inputs/outputs and error bodies
+  sdk/             Garmin Personal API client, key→token exchange, errors
+  tools/           MCP tools (profile, activities, wellness, stats) + sanitising
+  auth/            API-key extraction, key gate (401/502) and HTTPS-only middleware
+  web/             landing page template
+```
 
 ## Development
 
+The project uses [uv](https://docs.astral.sh/uv/).
+
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-pre-commit install
-ruff check . && ruff format --check . && mypy garmin_mcp && pytest
+uv sync                      # creates .venv with runtime and dev dependencies
+uv run pre-commit install
+uv run black . && uv run ruff check . && uv run mypy && uv run pytest
 ```
 
 Unit tests mock Garmin and do not need a key. The optional live check is:
 
 ```bash
-uvicorn garmin_mcp.asgi:app --port 18790
-BASE=http://localhost:18790 GARMIN_KEY_FILE=/path/to/keyfile python scripts/e2e.py
+ALLOW_INSECURE_HTTP=1 uv run uvicorn garmin_mcp.asgi:app --port 18790
+BASE=http://localhost:18790 GARMIN_KEY_FILE=/path/to/keyfile uv run scripts/e2e.py
 ```
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). For a later move to Garmin's partner

@@ -2,7 +2,7 @@
 """Live end-to-end check against a running server. Never prints the key.
 
 Usage:
-    BASE=https://... GARMIN_KEY_FILE=/path/to/keyfile python scripts/e2e.py
+    BASE=https://... GARMIN_KEY_FILE=/path/to/keyfile uv run scripts/e2e.py
 
 This is opt-in and is not run by CI or a default `pytest` invocation.
 """
