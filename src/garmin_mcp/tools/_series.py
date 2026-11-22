@@ -99,7 +99,6 @@ SPECS: dict[str, MetricSpec] = {
     ),
     "daily_summaries": MetricSpec(
         chunk_days=31,
-        max_days=31,
         rows_key="data",
         units={
             "*InMillis": "milliseconds",

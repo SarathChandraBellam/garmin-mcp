@@ -5,9 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from ..contracts import Note, OptDate, TrainingReadinessProxy, Tz
+from ..contracts.common import OptPeriod
 from ._context import call, check_range, shift, source, today
 from ._sanitize import has_data, no_pii, strip_samples
 from ._series import SPECS
+from ._window import resolve_window
 
 
 def _or_note(value: Any, message: str) -> Any:
@@ -56,20 +58,27 @@ def get_hrv(date: OptDate = None, include_samples: bool = False, tz: Tz = None) 
 
 
 def get_body_composition(
-    start_date: OptDate = None, end_date: OptDate = None, tz: Tz = None
+    start_date: OptDate = None,
+    end_date: OptDate = None,
+    tz: Tz = None,
+    period: OptPeriod = None,
 ) -> Any:
-    """Weight / body-composition measurements in a range (default the last 31 days, inclusive).
+    """Weight / body-composition measurements in a range (default the last 31 days, inclusive; or `period`).
 
     Weight and mass values are in grams (81200 = 81.2 kg) regardless of the profile's
-    measurement system; see the `units` key.
+    measurement system; see the `units` key. `window` says which dates were covered.
     """
-    e = end_date or today(tz)
-    s = start_date or shift(e, -30)
+    w = resolve_window(period, start_date, end_date, tz, default="last_30d")
+    if not (period or start_date):  # keep the historical default: 31 days ending at end_date
+        w = w.model_copy(update={"start": shift(w.end, -30), "days": 31})
+    s, e = w.start, w.end
     check_range(s, e, what="get_body_composition")
     res = no_pii(call(source().weight_range, s, e))
     if not has_data(res):
         return Note(note=f"No weight or body-composition entries for {s}..{e}").model_dump()
-    return {**res, "units": SPECS["weight"].units} if isinstance(res, dict) else res
+    if isinstance(res, dict):
+        return {**res, "units": SPECS["weight"].units, "window": w.model_dump()}
+    return res
 
 
 def get_spo2(date: OptDate = None, tz: Tz = None) -> Any:

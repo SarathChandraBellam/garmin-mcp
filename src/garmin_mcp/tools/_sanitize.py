@@ -24,6 +24,12 @@ PII_FIELDS = frozenset(
         "locationName",
         "activityUUID",
         "deviceMetaData",
+        # route geometry: no maps or tracks ever leave the server
+        "geoPolylineDTO",
+        "polyline",
+        "polylineDTO",
+        "startPoint",
+        "endPoint",
     }
 )
 # Matched case-insensitively: Garmin spells the same field differently across services

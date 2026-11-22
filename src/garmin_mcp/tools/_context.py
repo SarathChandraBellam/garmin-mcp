@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import contextvars
 import datetime as dt
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, TypeVar
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -15,6 +17,8 @@ from ..config import get_settings
 from ..sdk import GarminApiError, GarminAuthError, PersonalApi
 
 T = TypeVar("T")
+
+MAX_PARALLEL = 4  # concurrent Garmin calls per tool call; keeps us gentle on rate limits
 
 
 def current_garmin_key() -> str:
@@ -72,7 +76,21 @@ def caller_zone(tz: str | None = None) -> ZoneInfo:
     return _zone(get_settings().default_timezone, "DEFAULT_TIMEZONE")
 
 
+def parallel(jobs: Sequence[Callable[[], T]]) -> list[T]:
+    """Run ``jobs`` with at most ``MAX_PARALLEL`` in flight; results keep the input order.
+
+    Each job runs in a copy of the caller's context, so request headers stay visible. The
+    first error is re-raised (Garmin errors as ToolError, like :func:`call`).
+    """
+    if len(jobs) <= 1:
+        return [call(j) for j in jobs]
+    with ThreadPoolExecutor(max_workers=min(MAX_PARALLEL, len(jobs))) as pool:
+        futures = [pool.submit(contextvars.copy_context().run, call, j) for j in jobs]
+        return [f.result() for f in futures]
+
+
 def today(tz: str | None = None) -> str:
+    """Today's date in the caller's time zone (see :func:`caller_zone`)."""
     return _utcnow().astimezone(caller_zone(tz)).date().isoformat()
 
 

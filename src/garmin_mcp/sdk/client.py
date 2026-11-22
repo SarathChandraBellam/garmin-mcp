@@ -111,6 +111,10 @@ class PersonalApi:
     def activity(self, activity_id: int) -> Any:
         return self.get(f"/activity-service/activity/{int(activity_id)}")
 
+    def activity_splits(self, activity_id: int) -> Any:
+        """Laps/splits. Not confirmed on the Personal API; callers treat None as "no splits"."""
+        return self.get(f"/activity-service/activity/{int(activity_id)}/splits")
+
     def daily_summaries(self, s: str, e: str) -> Any:
         return self.get("/usersummary-service/v2/dailysummaries", {"startDate": s, "endDate": e})
 

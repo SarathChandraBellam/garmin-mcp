@@ -10,8 +10,10 @@ from starlette.responses import HTMLResponse, JSONResponse
 from starlette.routing import Route
 
 from .. import __version__
+from ..apps import APPS
 from ..config import get_settings
 from ..tools import ALL_TOOLS
+from ..tools.prompts import PROMPTS
 from .render import SECURITY_HEADERS, render
 
 MCP_PATH = "/mcp"
@@ -41,6 +43,8 @@ async def index(request: Request) -> HTMLResponse:
         version=html.escape(__version__),
         mcp_url=html.escape(base + MCP_PATH),
         tools_rows=_tool_rows(),
+        prompts_list=", ".join(f"<code>{html.escape(p.__name__)}</code>" for p in PROMPTS),
+        apps_list=", ".join(html.escape(a.title) for a in APPS),
     )
     headers = {**SECURITY_HEADERS, "Cache-Control": "public, max-age=300"}
     return HTMLResponse(body, headers=headers)

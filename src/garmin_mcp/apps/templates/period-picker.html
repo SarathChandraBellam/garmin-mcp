@@ -1,0 +1,33 @@
+/*@include:_head.html*/
+<title>Pick a period</title>
+</head>
+<body>
+<main>
+  <h1 id="question">Which time window?</h1>
+  <div id="options" role="group" aria-labelledby="question" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
+  <p class="status" id="status" role="status"></p>
+</main>
+<script>
+/*@include:_bridge.js*/
+/*@include:_charts.js*/
+const $ = (id) => document.getElementById(id);
+let done = false;
+function render(d) {
+  if (!d || !d.options) return;
+  $("question").textContent = d.question;
+  $("options").replaceChildren(...d.options.map((o) => el("button", { type: "button", text: o.label,
+    onclick: async (e) => {
+      if (done) return;
+      done = true;
+      for (const b of $("options").querySelectorAll("button")) b.disabled = true;
+      e.currentTarget.classList.add("primary");
+      try { await Bridge.sendMessage(`Use the period ${o.value} (${o.label}).`); setStatus($("status"), "Sent: " + o.label); }
+      catch (err) { done = false; setStatus($("status"), "Could not send: " + err.message, true); }
+    } })));
+  const first = $("options").querySelector("button");
+  if (first) first.focus();
+}
+Bridge.init("garmin-period-picker", render);
+</script>
+</body>
+</html>

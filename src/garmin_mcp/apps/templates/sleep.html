@@ -1,0 +1,69 @@
+/*@include:_head.html*/
+<title>Sleep</title>
+</head>
+<body>
+<main>
+  <h1>Sleep</h1>
+  <p class="sub" id="window">Waiting for data&hellip;</p>
+  <section class="grid" id="tiles"></section>
+  <h2>Last 30 nights</h2>
+  <div id="nights"></div>
+  <div class="legend" aria-hidden="true"><span><i class="deep"></i>Deep</span><span><i class="light"></i>Light</span><span><i class="rem"></i>REM</span><span><i class="awake"></i>Awake</span></div>
+  <h2><label for="night">One night</label></h2>
+  <select id="night"></select>
+  <div id="stages"></div>
+  <p class="status" id="status" role="status"></p>
+</main>
+<script>
+/*@include:_bridge.js*/
+/*@include:_charts.js*/
+const $ = (id) => document.getElementById(id);
+let nights = [];
+const STAGES = [["deep", "Deep"], ["light", "Light"], ["rem", "REM"], ["awake", "Awake"]];
+
+function tile(label, value, unit, sub) {
+  return el("article", { class: "card" }, el("div", { class: "kpi-label", text: label }),
+    el("div", { class: "kpi-value", text: value }, el("span", { class: "kpi-unit", text: unit || "" })),
+    sub ? el("div", { class: "muted", text: sub }) : null);
+}
+
+function renderSummary(d) {
+  if (!d || d.nights === undefined) return;
+  $("window").textContent = `${d.window.start} – ${d.window.end} · ${d.nights} nights`;
+  $("tiles").replaceChildren(
+    tile("Average sleep", fmt(d.avg_total_h, 1), "h", d.avg_need_h ? `need ${fmt(d.avg_need_h, 1)} h` : ""),
+    tile("Sleep score", fmt(d.avg_score, 0), "/100"),
+    tile("Bedtime", d.avg_bedtime || "–", "", d.bedtime_spread_min !== undefined && d.bedtime_spread_min !== null ? `± ${fmt(d.bedtime_spread_min, 0)} min` : ""),
+    tile("Sleep debt", fmt(d.sleep_debt_h, 1), "h"));
+}
+
+function showNight(date) {
+  const n = nights.find((x) => x.date === date);
+  if (!n) { $("stages").replaceChildren(); return; }
+  $("stages").replaceChildren(
+    el("p", { class: "muted", text: `${n.bedtime || "?"} → ${n.wake_time || "?"} · ${fmt(n.total_h, 1)} h asleep` + (n.score !== null && n.score !== undefined ? ` · score ${fmt(n.score, 0)}` : "") }),
+    barList(STAGES.map(([k, label]) => ({ label, value: n[k + "_h"] || 0, cls: k, text: fmt(n[k + "_h"], 1) + " h" })), { label: `Sleep stages on ${date}` }));
+}
+
+function renderNights(d) {
+  nights = (d.daily || []).filter((n) => n.total_h);
+  $("nights").replaceChildren(...(nights.length
+    ? [stackedColumns(nights.map((n) => ({ label: n.date, title: `${n.date}: ${fmt(n.total_h, 1)} h`,
+        parts: STAGES.map(([k]) => ({ value: n[k + "_h"] || 0, cls: k })) })), { label: `Sleep stages for ${nights.length} nights`, height: 120 }),
+       el("div", { class: "axis", "aria-hidden": "true" }, el("span", { text: nights[0].date }), el("span", { text: nights[nights.length - 1].date }))]
+    : [el("p", { class: "muted", text: "No nights recorded." })]));
+  $("night").replaceChildren(...nights.slice().reverse().map((n) => el("option", { value: n.date, text: `${n.date} · ${fmt(n.total_h, 1)} h` })));
+  if (nights.length) showNight(nights[nights.length - 1].date);
+}
+
+$("night").addEventListener("change", (e) => showNight(e.target.value));
+Bridge.init("garmin-sleep", async (d) => {
+  renderSummary(d);
+  if (d && d.daily && d.window && d.window.days >= 30) { renderNights(d); return; }
+  setStatus($("status"), "Loading the last 30 nights…");
+  try { renderNights(await Bridge.callTool("sleep_series", { period: "last_30d" })); setStatus($("status"), ""); }
+  catch (e) { setStatus($("status"), "Could not load nights: " + e.message, true); }
+});
+</script>
+</body>
+</html>
