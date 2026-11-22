@@ -34,7 +34,9 @@ def _fetch(spec: MetricSpec, fn: Any, start: str, end: str) -> tuple[list[Any], 
     for cs, ce in chunks(start, end, spec.chunk_days):
         chunk_rows, hints = split_response(spec, call(fn, cs, ce))
         for r in chunk_rows:
-            d = row_date(r)
+            if not isinstance(r, dict) or not has_data(r, spec.drop):
+                continue  # skeleton record (e.g. a night with no sleep): treat as missing
+            d = row_date(r, spec.drop)
             if d is None or cs <= d <= ce:
                 rows.append(r)
             elif not start <= d <= end:  # a neighbouring chunk owns in-window dates
@@ -70,10 +72,15 @@ def query_stats(
     by_date: dict[str, list[dict[str, Any]]] = {}
     undated: list[dict[str, Any]] = []
     for r in rows:
-        if not isinstance(r, dict) or not has_data(r):
+        d = row_date(r, spec.drop)
+        if d is None:
+            undated.append(shape(r))
             continue
-        d = row_date(r)
-        (by_date.setdefault(d, []) if d else undated).append(shape(r))
+        # Every dated row carries calendarDate, like the padded rows (body_battery uses
+        # "date", weight "summaryDate", vo2max nests it under "generic").
+        if r.get("date") == d:
+            r = {k: v for k, v in r.items() if k != "date"}
+        by_date.setdefault(d, []).append({"calendarDate": d, **shape(r)})
 
     now = today()
     data: list[dict[str, Any]] = []

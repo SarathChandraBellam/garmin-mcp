@@ -120,16 +120,20 @@ def _as_date(v: Any) -> str | None:
     return None
 
 
-def row_date(row: Any) -> str | None:
-    """The local calendar date a Garmin daily record belongs to, if it can be found."""
+def row_date(row: Any, skip: frozenset[str] = frozenset()) -> str | None:
+    """The local calendar date a Garmin daily record belongs to, if it can be found.
+
+    Nested objects named in ``skip`` (descriptors such as ``sleepNeed``) are not searched:
+    their dates describe something else, not the record.
+    """
     if not isinstance(row, dict):
         return None
     for k in _DATE_KEYS + _DATETIME_KEYS:
         d = _as_date(row.get(k))
         if d:
             return d
-    for nested in row.values():  # e.g. vo2max rows: {"generic": {"calendarDate": ...}}
-        if isinstance(nested, dict):
+    for key, nested in row.items():  # e.g. vo2max rows: {"generic": {"calendarDate": ...}}
+        if isinstance(nested, dict) and key not in skip:
             d = next((_as_date(nested.get(k)) for k in _DATE_KEYS if nested.get(k)), None)
             if d:
                 return d

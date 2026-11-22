@@ -15,16 +15,19 @@ from garmin_mcp.sdk import PERSONAL_BASE, TOKEN_PATH, GarminApiError, PersonalAp
 from garmin_mcp.sdk.client import error_detail
 from garmin_mcp.server import App
 from garmin_mcp.tools._context import chunks, today
-from garmin_mcp.tools._sanitize import compact, has_data
+from garmin_mcp.tools._sanitize import compact, has_data, no_pii
 from garmin_mcp.tools._series import SPECS, row_date
 from tests.conftest import fake_jwt
 from tests.fixtures import (
     ACTIVITY_DETAIL,
+    BODY_BATTERY_DAY,
     HRV_DAY,
     SLEEP,
     SLEEP_NULL_SKELETON,
+    SLEEP_SKELETON_NIGHT,
     SLEEP_SUMMARIES,
     WEIGHT_RANGE,
+    WELLNESS_ACTIVITY,
 )
 from tests.test_server import _call
 
@@ -371,3 +374,67 @@ def test_helpers():
         "b": "[1 items omitted; pass raw=true]",
         "c": 1,
     }
+
+
+@respx.mock
+def test_skeleton_sleep_night_is_missing(client: TestClient):
+    """A night with only sleepNeed descriptors is a gap, not data, and keeps its own date."""
+    _token()
+    respx.get(f"{PERSONAL_BASE}/sleep-service/sleep/dailySleepSummariesByDate").mock(
+        return_value=httpx.Response(
+            200,
+            json=[{"calendarDate": "2026-01-14", "sleepTimeSeconds": 25_000}, SLEEP_SKELETON_NIGHT],
+        )
+    )
+    args = {"metric": "sleep", "start_date": "2026-01-14", "end_date": "2026-01-15"}
+    for raw in (False, True):
+        body = json.loads(_call(client, "query_stats", {**args, "raw": raw})[1])
+        assert body["days_with_data"] == 1
+        assert [(r["calendarDate"], r["missing"]) for r in body["data"]] == [
+            ("2026-01-14", False),
+            ("2026-01-15", True),
+        ]
+        assert body["outside_range"] == []
+
+
+@respx.mock
+def test_skeleton_only_window_is_empty(client: TestClient):
+    _token()
+    respx.get(f"{PERSONAL_BASE}/sleep-service/sleep/dailySleepSummariesByDate").mock(
+        return_value=httpx.Response(200, json=[SLEEP_SKELETON_NIGHT])
+    )
+    args = {"metric": "sleep", "start_date": "2026-01-15", "end_date": "2026-01-15"}
+    body = json.loads(_call(client, "query_stats", args)[1])
+    assert body["status"] == "empty"
+    assert body["data"] == [{"calendarDate": "2026-01-15", "missing": True}]
+
+
+@respx.mock
+def test_body_battery_rows_use_calendar_date(client: TestClient):
+    _token()
+    respx.get(f"{PERSONAL_BASE}/wellness-service/wellness/bodyBattery/reports/daily").mock(
+        return_value=httpx.Response(200, json=[BODY_BATTERY_DAY])
+    )
+    args = {"metric": "body_battery", "start_date": "2026-01-14", "end_date": "2026-01-15"}
+    data = json.loads(_call(client, "query_stats", args)[1])["data"]
+    assert data[0] == {"calendarDate": "2026-01-14", "missing": True}
+    assert data[1] == {"calendarDate": "2026-01-15", "charged": 40, "drained": 55, "missing": False}
+
+
+@respx.mock
+def test_wellness_activities_strip_ids(client: TestClient):
+    _token()
+    respx.get(url__startswith=f"{PERSONAL_BASE}/wellnessactivity-service/").mock(
+        return_value=httpx.Response(200, json=[WELLNESS_ACTIVITY])
+    )
+    args = {"metric": "wellness_activities", "start_date": "2026-01-15", "end_date": "2026-01-15"}
+    for raw in (False, True):
+        row = json.loads(_call(client, "query_stats", {**args, "raw": raw})[1])["data"][0]
+        assert row["activityType"] == "walking"
+        assert "activityUuid" not in row and "deviceMetaData" not in row
+
+
+def test_pii_denylist_is_case_insensitive():
+    assert no_pii({"ActivityUuid": 1, "USERID": 2, "deviceid": 3, "keep": 4}) == {"keep": 4}
+    assert not has_data({"sleepNeed": {"baseline": 480}}, frozenset({"sleepNeed"}))
+    assert row_date({"sleepNeed": {"calendarDate": "2026-01-14"}}, frozenset({"sleepNeed"})) is None

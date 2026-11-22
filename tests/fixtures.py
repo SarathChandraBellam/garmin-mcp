@@ -122,3 +122,24 @@ WEIGHT_RANGE = {
     "previousDateWeight": {"calendarDate": "2026-01-01", "weight": 81_900.0},
     "nextDateWeight": None,
 }
+
+# A night with no recorded sleep: Garmin still fills in the sleep-need descriptors,
+# whose own dates differ from the row's calendarDate.
+SLEEP_SKELETON_NIGHT = {
+    "calendarDate": "2026-01-15",
+    "sleepTimeSeconds": None,
+    "deepSleepSeconds": None,
+    "sleepScores": None,
+    "sleepNeed": {"calendarDate": "2026-01-14", "baseline": 480, "actual": 470},
+    "nextSleepNeed": {"calendarDate": "2026-01-16", "baseline": 480, "actual": 480},
+}
+
+BODY_BATTERY_DAY = {"date": "2026-01-15", "charged": 40, "drained": 55}
+
+WELLNESS_ACTIVITY = {
+    "calendarDate": "2026-01-15",
+    "activityUuid": "00000000-0000-0000-0000-000000000000",
+    "deviceMetaData": {"deviceId": 4242, "deviceTypePk": 1},
+    "activityType": "walking",
+    "duration": 900,
+}

@@ -23,14 +23,18 @@ PII_FIELDS = frozenset(
         "deviceId",
         "locationName",
         "activityUUID",
+        "deviceMetaData",
     }
 )
+# Matched case-insensitively: Garmin spells the same field differently across services
+# (userProfilePK / userProfilePk, activityUUID / activityUuid).
+_PII_LOWER = frozenset(k.lower() for k in PII_FIELDS)
 MAX_SAMPLES = 50
 
 
 def no_pii(x: Any) -> Any:
     if isinstance(x, dict):
-        return {k: no_pii(v) for k, v in x.items() if k not in PII_FIELDS}
+        return {k: no_pii(v) for k, v in x.items() if k.lower() not in _PII_LOWER}
     if isinstance(x, list):
         return [no_pii(v) for v in x]
     return x
@@ -68,14 +72,17 @@ def compact(obj: Any, drop: frozenset[str] = frozenset()) -> Any:
     return obj
 
 
-def has_data(x: Any) -> bool:
+def has_data(x: Any, ignore: frozenset[str] = frozenset()) -> bool:
     """True if ``x`` holds at least one real measurement.
 
     Garmin sometimes answers with a skeleton object whose values are all null; dates, ids
-    and booleans alone do not count as data.
+    and booleans alone do not count as data. Top-level keys in ``ignore`` (descriptor
+    objects such as a sleep row's ``sleepNeed``, which Garmin fills in even for nights with
+    no sleep) are not considered either.
     """
     if isinstance(x, dict):
-        return any(has_data(v) for k, v in x.items() if k not in _NON_DATA_KEYS)
+        skip = _NON_DATA_KEYS | ignore
+        return any(has_data(v) for k, v in x.items() if k not in skip)
     if isinstance(x, list):
         return any(has_data(v) for v in x)
     if isinstance(x, bool) or x is None:
