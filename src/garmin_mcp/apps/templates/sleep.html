@@ -1,68 +1,155 @@
 /*@include:_head.html*/
 <title>Sleep</title>
+<style>
+.top { display: grid; grid-template-columns: minmax(200px, 240px) minmax(0, 1fr); gap: 12px; }
+:root[data-size="compact"] .top { grid-template-columns: minmax(0, 1fr); }
+.score { display: grid; justify-items: center; align-content: center; gap: 8px; text-align: center; }
+.score .kpi-label { justify-self: start; }
+:root[data-size="compact"] .score { grid-template-columns: auto minmax(0, 1fr); justify-items: start; text-align: left; }
+:root[data-size="compact"] .score .kpi-label { grid-column: 1 / -1; }
+.top .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.night-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+.night-head h2 { margin: 0; }
+.night-times { font-size: var(--text-sm); color: var(--muted); margin-bottom: 10px; }
+.night-times b { color: var(--fg); }
+.stack { margin-bottom: 14px; height: 16px; }
+</style>
 </head>
 <body>
 <main>
-  <h1>Sleep</h1>
-  <p class="sub" id="window">Waiting for data&hellip;</p>
-  <section class="grid" id="tiles"></section>
-  <h2>Last 30 nights</h2>
-  <div id="nights"></div>
-  <div class="legend" aria-hidden="true"><span><i class="deep"></i>Deep</span><span><i class="light"></i>Light</span><span><i class="rem"></i>REM</span><span><i class="awake"></i>Awake</span></div>
-  <h2><label for="night">One night</label></h2>
-  <select id="night"></select>
-  <div id="stages"></div>
-  <p class="status" id="status" role="status"></p>
+  <header class="app-head">
+    <div class="titles"><span class="app-icon" data-icon="moon"></span>
+      <div><h1>Sleep</h1><p class="sub" id="window"><span class="sk title"></span></p></div></div>
+    <div id="periods"></div>
+  </header>
+  <div id="error"></div>
+  <section class="top" id="top" aria-label="Summary"><div class="sk block"></div><div class="grid"><div class="sk tile"></div><div class="sk tile"></div><div class="sk tile"></div><div class="sk tile"></div></div></section>
+  <section class="card" id="nights-card">
+    <h2><span id="nights-title">Nights</span> <span class="note" id="nights-note"></span></h2>
+    <div id="nights"><div class="sk" style="height:150px"></div></div>
+    <ul class="legend" id="legend" aria-label="Sleep stages"></ul>
+  </section>
+  <section class="card" id="night-card" hidden>
+    <div class="night-head"><h2>One night</h2><label class="field">Night <select id="night"></select></label></div>
+    <div id="stages"></div>
+  </section>
+  <p class="sr-only" id="status" role="status"></p>
 </main>
 <script>
-/*@include:_bridge.js*/
-/*@include:_charts.js*/
+/*@include:_lib.js*/
 const $ = (id) => document.getElementById(id);
-let nights = [];
+const PERIODS = periodOptions(["last_7d", "last_30d", "last_90d"]);
 const STAGES = [["deep", "Deep"], ["light", "Light"], ["rem", "REM"], ["awake", "Awake"]];
+let nights = [], period = "last_30d", seq = 0, shown = false;
 
-function tile(label, value, unit, sub) {
-  return el("article", { class: "card" }, el("div", { class: "kpi-label", text: label }),
-    el("div", { class: "kpi-value", text: value }, el("span", { class: "kpi-unit", text: unit || "" })),
-    sub ? el("div", { class: "muted", text: sub }) : null);
+function tile(ic, label, value, unit, foot) {
+  return el("article", { class: "card kpi enter" }, el("div", { class: "kpi-label" }, icon(ic), el("span", { text: label })),
+    el("div", { class: "kpi-value" }, value, unit ? el("span", { class: "kpi-unit", text: unit }) : null),
+    foot ? el("div", { class: "kpi-foot" }, foot) : null);
+}
+function hm(h) {
+  if (!has(h)) return "–";
+  const m = Math.round(h * 60);
+  return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")} m`;
 }
 
 function renderSummary(d) {
   if (!d || d.nights === undefined) return;
-  $("window").textContent = `${d.window.start} – ${d.window.end} · ${d.nights} nights`;
-  $("tiles").replaceChildren(
-    tile("Average sleep", fmt(d.avg_total_h, 1), "h", d.avg_need_h ? `need ${fmt(d.avg_need_h, 1)} h` : ""),
-    tile("Sleep score", fmt(d.avg_score, 0), "/100"),
-    tile("Bedtime", d.avg_bedtime || "–", "", d.bedtime_spread_min !== undefined && d.bedtime_spread_min !== null ? `± ${fmt(d.bedtime_spread_min, 0)} min` : ""),
-    tile("Sleep debt", fmt(d.sleep_debt_h, 1), "h"));
+  if (d.window && PERIODS.some(([p]) => p === d.window.period)) period = d.window.period;
+  setWindow(windowText(d.window, "night"), `Time zone: ${d.window.timezone}`);
+  $("periods").replaceChildren(segmented(PERIODS, period, load, "Time window"));
+  $("error").replaceChildren();
+  if (!d.nights) return;
+  const need = has(d.avg_need_h) ? d.avg_need_h : null;
+  const gap = need !== null && has(d.avg_total_h) ? d.avg_total_h - need : null;
+  $("top").replaceChildren(
+    el("article", { class: "card score enter", "aria-label": "Sleep score" },
+      el("div", { class: "kpi-label" }, icon("moon"), el("span", { text: "Sleep score" })),
+      ring(d.avg_score, 100, { label: `Average sleep score ${fmt(d.avg_score, 0)} of 100`, caption: "avg of 100", size: 128 }),
+      el("div", { class: "kpi-foot", text: `${d.nights} night${d.nights === 1 ? "" : "s"}` })),
+    el("div", { class: "grid" },
+      tile("timer", "Average sleep", fmt(d.avg_total_h, 1), "h",
+        gap === null ? null : el("span", { class: "delta " + (gap >= -0.25 ? "good" : "bad"), text: gap >= -0.25 ? "Meets your need" : `${hm(-gap)} under need` })),
+      tile("moon", "Bedtime", clock(d.avg_bedtime), "",
+        has(d.bedtime_spread_min) ? el("span", { text: `± ${fmt(d.bedtime_spread_min, 0)} min night to night` }) : null),
+      tile("pulse", "Wake time", clock(d.avg_wake_time), "", null),
+      tile("battery", "Sleep debt", fmt(d.sleep_debt_h, 1), "h", need !== null ? el("span", { text: `vs ${fmt(need, 1)} h a night` }) : null)));
 }
 
 function showNight(date) {
   const n = nights.find((x) => x.date === date);
   if (!n) { $("stages").replaceChildren(); return; }
+  const total = STAGES.reduce((s, [k]) => s + (n[k + "_h"] || 0), 0) || 1;
+  const stack = el("div", { class: "stack", role: "img", "aria-label": STAGES.map(([k, l]) => `${l} ${fmt(n[k + "_h"], 1)} hours`).join(", ") },
+    ...STAGES.map(([k]) => { const s = el("span", { class: k }); s.style.width = ((n[k + "_h"] || 0) / total) * 100 + "%"; return s; }));
   $("stages").replaceChildren(
-    el("p", { class: "muted", text: `${n.bedtime || "?"} → ${n.wake_time || "?"} · ${fmt(n.total_h, 1)} h asleep` + (n.score !== null && n.score !== undefined ? ` · score ${fmt(n.score, 0)}` : "") }),
-    barList(STAGES.map(([k, label]) => ({ label, value: n[k + "_h"] || 0, cls: k, text: fmt(n[k + "_h"], 1) + " h" })), { label: `Sleep stages on ${date}` }));
+    el("p", { class: "night-times" }, el("b", { text: `${clock(n.bedtime)} → ${clock(n.wake_time)}` }),
+      ` · ${hm(n.total_h)} asleep` + (has(n.score) ? ` · score ${fmt(n.score, 0)}` : "")),
+    stack,
+    barList(STAGES.map(([k, label]) => ({ label, value: n[k + "_h"] || 0, cls: k,
+      text: `${hm(n[k + "_h"] || 0)} · ${fmt(((n[k + "_h"] || 0) / total) * 100, 0)}%` })), { label: `Sleep stages on ${date}` }));
 }
 
 function renderNights(d) {
   nights = (d.daily || []).filter((n) => n.total_h);
-  $("nights").replaceChildren(...(nights.length
-    ? [stackedColumns(nights.map((n) => ({ label: n.date, title: `${n.date}: ${fmt(n.total_h, 1)} h`,
-        parts: STAGES.map(([k]) => ({ value: n[k + "_h"] || 0, cls: k })) })), { label: `Sleep stages for ${nights.length} nights`, height: 120 }),
-       el("div", { class: "axis", "aria-hidden": "true" }, el("span", { text: nights[0].date }), el("span", { text: nights[nights.length - 1].date }))]
-    : [el("p", { class: "muted", text: "No nights recorded." })]));
-  $("night").replaceChildren(...nights.slice().reverse().map((n) => el("option", { value: n.date, text: `${n.date} · ${fmt(n.total_h, 1)} h` })));
-  if (nights.length) showNight(nights[nights.length - 1].date);
+  $("nights-title").textContent = d.window ? `${d.window.days} nights` : "Nights";
+  $("nights-note").textContent = nights.length ? `${nights.length} recorded · hours asleep` : "";
+  $("legend").hidden = !nights.length;
+  $("legend").replaceChildren(...STAGES.map(([k, l]) => el("li", {}, el("i", { class: "key " + k, "aria-hidden": "true" }), l)));
+  $("night-card").hidden = !nights.length;
+  if (!nights.length) {
+    $("nights").replaceChildren(emptyState("moon", "No nights recorded", "Your watch didn't record sleep in this range. Wear it overnight, or try a longer range.",
+      period !== "last_90d" ? ["Show the last 90 days", () => load("last_90d")] : null));
+    $("top").replaceChildren();
+    return;
+  }
+  const n = nights.length, mid = Math.floor((n - 1) / 2);
+  const xl = n > 1 ? [[0, shortDate(nights[0].date), "start"], [n - 1, shortDate(nights[n - 1].date), "end"]] : [[0, shortDate(nights[0].date)]];
+  if (n >= 9) xl.push([mid, shortDate(nights[mid].date)]);
+  $("nights").replaceChildren(chartSlot((w) => stackedColumns(nights.map((x) => ({ label: x.date,
+    title: `${dayDate(x.date)}: ${hm(x.total_h)} (deep ${fmt(x.deep_h, 1)}, light ${fmt(x.light_h, 1)}, REM ${fmt(x.rem_h, 1)}, awake ${fmt(x.awake_h, 1)} h)`,
+    parts: STAGES.map(([k]) => ({ value: x[k + "_h"] || 0, cls: k })) })),
+    { label: `Sleep stages for ${n} nights, ${rangeText(nights[0].date, nights[n - 1].date)}`, width: w, height: 160, unit: "h", xLabels: xl }), 160));
+  const sel = $("night");
+  sel.replaceChildren(...nights.slice().reverse().map((x) => el("option", { value: x.date, text: `${dayDate(x.date)} · ${fmt(x.total_h, 1)} h` })));
+  showNight(nights[n - 1].date);
+  requestAnimationFrame(() => paintCharts());
+}
+
+function render(d) {
+  renderSummary(d);
+  renderNights(d);
+  shown = true;
+}
+
+async function load(p) {
+  period = p;
+  const mine = ++seq;
+  $("periods").replaceChildren(segmented(PERIODS, period, load, "Time window"));
+  setBusy([$("top"), $("nights-card"), $("night-card")], true);
+  announce("Loading sleep for " + periodName(p).toLowerCase() + "…");
+  try {
+    const d = await Bridge.callTool("sleep_series", { period });
+    if (mine !== seq) return;
+    render(d);
+    announce(`Showing ${windowText(d.window, "night")}`);
+  } catch (e) {
+    if (mine !== seq) return;
+    if (!shown) { setWindow(""); $("top").replaceChildren(); $("nights").replaceChildren(); $("legend").hidden = true; }
+    $("error").replaceChildren(errorNotice("Could not load your sleep", e, () => load(period)));
+  } finally {
+    if (mine === seq) setBusy([$("top"), $("nights-card"), $("night-card")], false);
+  }
 }
 
 $("night").addEventListener("change", (e) => showNight(e.target.value));
-Bridge.init("garmin-sleep", async (d) => {
-  renderSummary(d);
-  if (d && d.daily && d.window && d.window.days >= 30) { renderNights(d); return; }
-  setStatus($("status"), "Loading the last 30 nights…");
-  try { renderNights(await Bridge.callTool("sleep_series", { period: "last_30d" })); setStatus($("status"), ""); }
-  catch (e) { setStatus($("status"), "Could not load nights: " + e.message, true); }
+mountChrome();
+Bridge.init("garmin-sleep", (d) => {
+  const named = d && d.window && PERIODS.some(([p]) => p === d.window.period);
+  if (d && d.daily && named) { render(d); return; }
+  // The header, tiles and chart always come from one sleep_series result, so they agree.
+  if (named) renderSummary(d);
+  load(named ? d.window.period : "last_30d");
 });
 </script>
 </body>

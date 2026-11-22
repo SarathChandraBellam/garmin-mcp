@@ -15,6 +15,17 @@ key (like a GitHub personal access token), the server exchanges it for a
 short-lived Garmin token (held in memory only), calls Garmin, returns the result,
 and forgets it.
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/screenshots/hero-dark.png">
+    <img src="docs/screenshots/hero-light.png" width="760" alt="The wellness dashboard view inside a chat: a Body Battery ring, a sleep chart and tiles for steps, resting heart rate, HRV and stress (sample data)">
+  </picture>
+</p>
+
+In hosts that support [MCP Apps](https://modelcontextprotocol.io/extensions/apps/overview),
+answers open as interactive views ([see below](#mcp-apps)). Every image here uses the
+apps' built-in **sample data**, never a real person's Garmin data.
+
 ## Why this exists
 
 Garmin now offers a self-serve [Personal API](https://developer.garmin.com/gc-developer-program/personal/personal-api)
@@ -257,26 +268,64 @@ In hosts that support [MCP Apps](https://modelcontextprotocol.io/extensions/apps
 
 | App | Opens from | Shows |
 |---|---|---|
-| Wellness dashboard | `get_wellness_overview` | KPI tiles, sparklines, a 1/7/15/30/90-day switcher |
-| Activity explorer | `get_activity_summary` | Totals, time per type, activity list, detail drawer with HR zones and splits (**no maps**) |
-| Sleep view | `get_sleep_analysis` | Stages for the last 30 nights and one night in detail |
-| Trend compare | `compare_periods`, `get_trends` | Two windows of one metric overlaid, with the change |
+| Wellness dashboard | `get_wellness_overview` | Body Battery ring, sleep chart, KPI tiles with sparklines, a 1/7/15/30/90-day switcher |
+| Activity explorer | `get_activity_summary` | Totals, time per type, activity list, detail panel with HR zones and splits (**no maps**) |
+| Sleep view | `get_sleep_analysis` | Sleep-score ring, bedtime and wake time, stages per night (7/30/90 nights) and one night in detail |
+| Trend compare | `compare_periods`, `get_trends` | Two windows of one metric lined up by day of window, with the change |
 | Period picker | `pick_period` | Buttons for each period; the choice goes back as a message |
 
-The apps are static HTML bundled in the package (vanilla JS, no CDN). Their CSP
-blocks all outside network access, and they get data only through the host's
-`tools/call`, on the same connection and key header. Tools only the apps call
+<p align="center"><img src="docs/screenshots/demo.gif" width="640" alt="Switching the activity explorer to 90 days and opening an activity (sample data)"></p>
+
+The apps are static HTML bundled in the package (vanilla JS, inline SVG charts, no
+CDN). Their CSP blocks all outside network access, and they get data only through the
+host's `tools/call`, on the same connection and key header. Tools only the apps call
 (`dashboard_data`, `activity_page`, `activity_detail`, `sleep_series`, `trend_data`)
 are read-only and marked `visibility: ["app"]`. Clients without Apps support get the
 same typed output and text summary as before.
 
-| | |
+The views follow the host's theme: they apply `hostContext.theme`, the MCP Apps style
+variables (`styles.variables` such as `--color-background-primary`, `--font-sans`,
+`--border-radius-*`, with built-in fallbacks) and `styles.css.fonts`, and switch to a
+compact layout when `containerDimensions` (or the frame) is narrower than 560px. The
+views and the landing page share one set of design tokens
+(`src/garmin_mcp/apps/templates/_tokens.css`).
+
+**Works in** hosts whose own docs list MCP Apps support:
+
+- **Claude Desktop** ([Claude's MCP Apps docs](https://claude.com/docs/connectors/building/mcp-apps/getting-started)),
+  connected with `mcp-remote` as shown above so the key header is sent.
+- **ChatGPT**, which implements the MCP Apps UI standard
+  ([announcement](https://blog.modelcontextprotocol.io/posts/2026-01-26-mcp-apps/),
+  [OpenAI quickstart](https://developers.openai.com/plugins/build/app-quickstart)).
+- **VS Code with GitHub Copilot** ([announced in January 2026](https://code.visualstudio.com/blogs/2026/01/26/mcp-apps-support),
+  first in VS Code Insiders).
+- Also listed in the [MCP Apps overview](https://modelcontextprotocol.io/extensions/apps/overview):
+  Microsoft 365 Copilot, Goose, Postman, MCPJam and Archestra.AI.
+
+This server needs your key in the `X-Garmin-Api-Key` header, so the host must be able
+to send a custom header (directly, or through a bridge such as `mcp-remote`).
+Claude.ai on the web and mobile can't send custom headers yet, so it can't connect.
+Other MCP clients, such as Cursor, work with the tools but don't render the views.
+
+| Light | Dark |
 |---|---|
 | ![Wellness dashboard](docs/screenshots/dashboard-light.png) | ![Wellness dashboard, dark](docs/screenshots/dashboard-dark.png) |
-| ![Activity explorer](docs/screenshots/activities-light.png) | ![Sleep view](docs/screenshots/sleep-light.png) |
-| ![Trend compare, dark](docs/screenshots/trends-dark.png) | ![Period picker](docs/screenshots/period-picker-light.png) |
+| ![Activity explorer](docs/screenshots/activities-light.png) | ![Activity explorer, dark](docs/screenshots/activities-dark.png) |
+| ![Sleep view](docs/screenshots/sleep-light.png) | ![Sleep view, dark](docs/screenshots/sleep-dark.png) |
+| ![Trend compare](docs/screenshots/trends-light.png) | ![Trend compare, dark](docs/screenshots/trends-dark.png) |
+| ![Period picker](docs/screenshots/period-picker-light.png) | ![Period picker, dark](docs/screenshots/period-picker-dark.png) |
 
-Screenshots use synthetic data.
+At 400px wide (compact layout):
+
+| | |
+|---|---|
+| ![Wellness dashboard, 400px](docs/screenshots/dashboard-compact-light.png) | ![Activity explorer, 400px, dark](docs/screenshots/activities-compact-dark.png) |
+
+**Sample-data mode.** Open any view with `?demo=1` (for example, serve the rendered
+HTML and load `dashboard.html?demo=1`, optionally with `&theme=dark`). The view then
+renders a built-in, clearly fake dataset, shows a **Sample data** badge, and never calls
+`tools/call` or posts a message. All the screenshots, the GIF and the landing page's
+Open Graph image are generated this way; never capture or commit real Garmin data.
 
 ### `query_stats` contract
 
@@ -406,12 +455,15 @@ uv run pre-commit install
 uv run black . && uv run ruff check . && uv run mypy && uv run pytest
 ```
 
-Unit tests mock Garmin and do not need a key. The MCP Apps browser smoke test runs
-when Playwright is available, and can refresh the README screenshots:
+Unit tests mock Garmin and do not need a key. The MCP Apps browser tests (real
+synthetic data, sample-data mode, empty and error states, compact width, host styles)
+run when Playwright is available. The same file regenerates every committed image
+(`docs/screenshots/*` and the landing page's `src/garmin_mcp/web/static/*`) from
+sample-data mode only:
 
 ```bash
 uv run --with playwright pytest tests/test_apps.py   # set CHROMIUM_PATH if needed
-APP_SCREENSHOTS=docs/screenshots uv run --with playwright pytest tests/test_apps.py -k browser
+APP_SCREENSHOTS=docs/screenshots uv run --with playwright --with pillow pytest tests/test_apps.py -k "screenshots or hero or gif"
 ```
 
 The optional live check is:

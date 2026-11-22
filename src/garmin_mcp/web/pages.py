@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import html
 import inspect
+from functools import cache
+from importlib.resources import files
 
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, JSONResponse
+from starlette.responses import HTMLResponse, JSONResponse, Response
 from starlette.routing import Route
 
 from .. import __version__
@@ -31,6 +33,30 @@ def _tool_rows() -> str:
     return "\n".join(rows)
 
 
+def _app_cards() -> str:
+    return "\n".join(
+        f'        <div class="card"><h3>{html.escape(a.title)}</h3><p>{html.escape(a.description)}</p></div>'
+        for a in APPS
+    )
+
+
+# Promo images made from the apps' built-in sample data (see tests/test_apps.py).
+STATIC_FILES = {"og.png": "image/png", "hero-light.png": "image/png", "hero-dark.png": "image/png"}
+
+
+@cache
+def _static(name: str) -> bytes:
+    return (files(__package__) / "static" / name).read_bytes()
+
+
+async def static(request: Request) -> Response:
+    name = request.path_params["name"]
+    if name not in STATIC_FILES:
+        return Response("Not found", status_code=404, headers=SECURITY_HEADERS)
+    headers = {**SECURITY_HEADERS, "Cache-Control": "public, max-age=86400"}
+    return Response(_static(name), media_type=STATIC_FILES[name], headers=headers)
+
+
 def _base_url(request: Request) -> str:
     configured = get_settings().public_base_url
     return (configured or str(request.base_url)).rstrip("/")
@@ -44,7 +70,9 @@ async def index(request: Request) -> HTMLResponse:
         mcp_url=html.escape(base + MCP_PATH),
         tools_rows=_tool_rows(),
         prompts_list=", ".join(f"<code>{html.escape(p.__name__)}</code>" for p in PROMPTS),
-        apps_list=", ".join(html.escape(a.title) for a in APPS),
+        apps_cards=_app_cards(),
+        page_url=html.escape(base + "/"),
+        og_image=html.escape(base + "/static/og.png"),
     )
     headers = {**SECURITY_HEADERS, "Cache-Control": "public, max-age=300"}
     return HTMLResponse(body, headers=headers)
@@ -72,4 +100,5 @@ routes = [
     Route("/", index, methods=["GET"]),
     Route("/info", info, methods=["GET"]),
     Route("/healthz", healthz, methods=["GET"]),
+    Route("/static/{name}", static, methods=["GET"]),
 ]

@@ -1,32 +1,85 @@
 /*@include:_head.html*/
 <title>Pick a period</title>
+<style>
+main { max-width: 620px; }
+.picker { display: grid; gap: 14px; }
+.groups { display: grid; gap: 12px; }
+.group-label { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; margin: 0 0 6px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { border-radius: 999px; padding: 7px 14px; display: inline-flex; align-items: center; gap: 6px; }
+.chip svg { width: 15px; height: 15px; }
+.chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.chip:disabled:not([aria-pressed="true"]) { opacity: .45; }
+.confirm { display: flex; gap: 8px; align-items: center; font-size: var(--text-sm); font-weight: 650; color: var(--good); min-height: 1.5em; }
+.confirm svg { width: 18px; height: 18px; flex: none; }
+</style>
 </head>
 <body>
 <main>
-  <h1 id="question">Which time window?</h1>
-  <div id="options" role="group" aria-labelledby="question" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px"></div>
-  <p class="status" id="status" role="status"></p>
+  <section class="card picker" aria-labelledby="question">
+    <header class="app-head">
+      <div class="titles"><span class="app-icon" data-icon="calendar"></span>
+        <div><h1><span id="question">Which time window?</span></h1><p class="sub" id="window">Pick one. Your choice goes back to the chat as a message.</p></div></div>
+    </header>
+    <div class="groups" id="options" role="toolbar" aria-labelledby="question"><div class="sk" style="height:34px"></div><div class="sk" style="height:34px;width:70%"></div></div>
+    <div id="error"></div>
+    <p class="confirm" id="status" role="status"></p>
+  </section>
 </main>
 <script>
-/*@include:_bridge.js*/
-/*@include:_charts.js*/
+/*@include:_lib.js*/
 const $ = (id) => document.getElementById(id);
-let done = false;
+let done = false, buttons = [];
+const rolling = (v) => /^(last_\d+d|today|yesterday)$/.test(v);
+
+async function choose(o, btn) {
+  if (done) return;
+  done = true;
+  for (const b of buttons) b.disabled = true;
+  btn.setAttribute("aria-pressed", "true");
+  btn.prepend(icon("check"));
+  $("error").replaceChildren();
+  $("status").replaceChildren(el("span", { class: "muted", text: "Sending…" }));
+  try {
+    await Bridge.sendMessage(`Use the period ${o.value} (${o.label}).`);
+    $("status").replaceChildren(icon("check"), el("span", { text: `Sent “${o.label}” to the chat.` }));
+  } catch (err) {
+    done = false;
+    btn.setAttribute("aria-pressed", "false");
+    if (btn.firstChild && btn.firstChild.nodeName === "svg") btn.firstChild.remove();
+    for (const b of buttons) b.disabled = false;
+    $("status").replaceChildren();
+    $("error").replaceChildren(errorNotice("Could not send your choice", err, () => choose(o, btn)));
+  }
+}
+
 function render(d) {
   if (!d || !d.options) return;
   $("question").textContent = d.question;
-  $("options").replaceChildren(...d.options.map((o) => el("button", { type: "button", text: o.label,
-    onclick: async (e) => {
-      if (done) return;
-      done = true;
-      for (const b of $("options").querySelectorAll("button")) b.disabled = true;
-      e.currentTarget.classList.add("primary");
-      try { await Bridge.sendMessage(`Use the period ${o.value} (${o.label}).`); setStatus($("status"), "Sent: " + o.label); }
-      catch (err) { done = false; setStatus($("status"), "Could not send: " + err.message, true); }
-    } })));
-  const first = $("options").querySelector("button");
-  if (first) first.focus();
+  buttons = [];
+  const groups = [["Rolling windows", d.options.filter((o) => rolling(o.value))], ["Calendar", d.options.filter((o) => !rolling(o.value))]].filter(([, xs]) => xs.length);
+  $("options").replaceChildren(...groups.map(([name, opts]) => el("div", { class: "group" },
+    el("p", { class: "group-label", text: name, "aria-hidden": "true" }),
+    el("div", { class: "chips" }, ...opts.map((o) => {
+      const b = el("button", { type: "button", class: "chip", "aria-pressed": "false", tabindex: "-1", text: o.label });
+      b.addEventListener("click", () => choose(o, b));
+      buttons.push(b);
+      return b;
+    })))));
+  if (buttons[0]) buttons[0].tabIndex = 0; // reachable with Tab; no focus ring on first paint
 }
+$("options").addEventListener("keydown", (e) => {
+  const i = buttons.indexOf(document.activeElement);
+  if (i < 0) return;
+  const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+  const to = e.key === "Home" ? 0 : e.key === "End" ? buttons.length - 1 : step ? (i + step + buttons.length) % buttons.length : -1;
+  if (to < 0) return;
+  e.preventDefault();
+  buttons[i].tabIndex = -1;
+  buttons[to].tabIndex = 0;
+  buttons[to].focus();
+});
+mountChrome();
 Bridge.init("garmin-period-picker", render);
 </script>
 </body>

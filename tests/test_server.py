@@ -77,6 +77,17 @@ def test_landing_info_and_healthz(client: TestClient):
     assert "personalApiToken" in page.text  # API-key guide
     assert "get_activities" in page.text  # tools table
     assert page.headers["x-frame-options"] == "DENY"
+    # Apps above the fold, link previews, and the shared design tokens
+    assert 'id="apps"' in page.text and "/static/hero-light.png" in page.text
+    assert '<meta property="og:image" content="http://localhost/static/og.png">' in page.text
+    assert '<meta name="twitter:card" content="summary_large_image">' in page.text
+    assert "--color-background-primary" in page.text  # tokens shared with the MCP Apps
+    assert "Cursor</strong>" not in page.text  # not listed as an MCP Apps host
+    og = client.get("/static/og.png")
+    assert og.status_code == 200 and og.headers["content-type"] == "image/png"
+    assert og.content.startswith(b"\x89PNG")
+    assert client.get("/static/../pyproject.toml").status_code == 404
+    assert client.get("/static/secret.txt").status_code == 404
     info = client.get("/info").json()
     assert info["name"] == "garmin-mcp"
     assert info["endpoint"] == "/mcp"

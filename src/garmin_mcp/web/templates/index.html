@@ -5,6 +5,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Garmin MCP</title>
 <meta name="description" content="Connect your own Garmin Connect data to Claude, Cursor and other MCP clients through Garmin's official Personal API. Stateless, open source, stores nothing.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="garmin-mcp">
+<meta property="og:title" content="garmin-mcp: your Garmin data, inside your AI assistant">
+<meta property="og:description" content="Open-source MCP server for your own Garmin Connect data, with interactive views in hosts that support MCP Apps. Official Personal API, stateless, stores nothing.">
+<meta property="og:url" content="$page_url">
+<meta property="og:image" content="$og_image">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="The garmin-mcp wellness dashboard, shown with sample data">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="garmin-mcp: your Garmin data, inside your AI assistant">
+<meta name="twitter:description" content="Open-source MCP server for your own Garmin Connect data, with interactive views. Stateless, stores nothing.">
+<meta name="twitter:image" content="$og_image">
 <style>
 $css
 header.top { border-bottom: 1px solid var(--border); background: var(--surface); }
@@ -14,9 +27,22 @@ header.top .wrap { display: flex; align-items: center; justify-content: space-be
 .logo { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; }
 .logo svg { width: 18px; height: 18px; }
 nav a { color: var(--muted); margin-left: 20px; font-weight: 500; font-size: 15px; }
-.hero { padding: 72px 0 40px; }
-.hero h1 { font-size: clamp(34px, 6vw, 56px); line-height: 1.05; letter-spacing: -.03em; margin: 16px 0; max-width: 16ch; }
-.hero p.lead { font-size: 19px; color: var(--muted); max-width: 60ch; margin: 0 0 28px; }
+.hero { padding: 56px 0 40px; }
+.hero .wrap { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.05fr); gap: 36px; align-items: center; }
+.hero h1 { font-size: clamp(34px, 4.6vw, 48px); line-height: 1.05; letter-spacing: -.03em; margin: 16px 0; max-width: 16ch; }
+.hero p.lead { font-size: 18px; color: var(--muted); max-width: 60ch; margin: 0 0 28px; }
+.shot { margin: 0; }
+.shot img { display: block; width: 100%; height: auto; border-radius: var(--radius); border: 1px solid var(--border); box-shadow: 0 20px 50px rgba(16,24,40,.14); background: var(--surface); }
+.shot figcaption { font-size: 13px; color: var(--muted); margin-top: 10px; text-align: center; }
+.apps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 20px; }
+.apps .card { padding: 16px; }
+.apps h3 { margin: 0 0 4px; font-size: 15px; }
+.apps p { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.45; }
+.works { padding: 22px; }
+.works h3 { margin: 0 0 10px; font-size: 17px; }
+.works ul { margin: 0 0 12px; padding-left: 18px; }
+.works li { margin: 0 0 6px; }
+.works p { margin: 0; color: var(--muted); font-size: 15px; }
 .endpoint { display: flex; gap: 8px; align-items: stretch; max-width: 640px; }
 .endpoint code { flex: 1; min-width: 0; display: flex; align-items: center; padding: 12px 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); overflow-x: auto; white-space: nowrap; font-size: 15px; }
 .cta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
@@ -55,6 +81,10 @@ td code { white-space: nowrap; }
 .trust p { margin: 0; color: var(--muted); font-size: 15px; }
 footer { border-top: 1px solid var(--border); padding: 28px 0 48px; color: var(--muted); font-size: 14px; }
 footer p { margin: 0 0 8px; max-width: 80ch; }
+@media (max-width: 960px) {
+  .hero .wrap { grid-template-columns: 1fr; gap: 28px; }
+  .apps { grid-template-columns: repeat(2, 1fr); }
+}
 @media (max-width: 760px) {
   .grid3, .guide, .trust { grid-template-columns: 1fr; }
   nav a.hide-sm { display: none; }
@@ -72,6 +102,7 @@ footer p { margin: 0 0 8px; max-width: 80ch; }
     </a>
     <nav>
       <a class="hide-sm" href="#api-key">API key</a>
+      <a class="hide-sm" href="#apps">Views</a>
       <a class="hide-sm" href="#connect">Connect</a>
       <a class="hide-sm" href="#tools">Tools</a>
       <a href="https://github.com/SarathChandraBellam/garmin-mcp">GitHub</a>
@@ -82,20 +113,50 @@ footer p { margin: 0 0 8px; max-width: 80ch; }
 <main>
   <div class="hero">
     <div class="wrap">
-      <span class="pill">MCP server &middot; v$version</span>
-      <h1>Your Garmin data, inside your AI assistant.</h1>
-      <p class="lead">Ask Claude, Cursor or any MCP client about your sleep, training, heart rate and daily stats.
-        This server uses Garmin's official <strong>Personal API</strong> with a key you create. It is stateless and stores nothing.</p>
-      <div class="endpoint">
-        <code id="mcp-url">$mcp_url</code>
-        <button class="btn primary" data-copy="#mcp-url">Copy MCP URL</button>
+      <div>
+        <span class="pill">MCP server &middot; v$version</span>
+        <h1>Your Garmin data, inside your AI assistant.</h1>
+        <p class="lead">Ask Claude, Cursor or any MCP client about your sleep, training, heart rate and daily stats.
+          In hosts that support MCP Apps, answers open as interactive views. The server uses Garmin's official
+          <strong>Personal API</strong> with a key you create. It is stateless and stores nothing.</p>
+        <div class="endpoint">
+          <code id="mcp-url">$mcp_url</code>
+          <button class="btn primary" data-copy="#mcp-url">Copy MCP URL</button>
+        </div>
+        <div class="cta">
+          <a class="btn" href="#api-key">Get your API key &rarr;</a>
+          <a class="btn" href="#apps">See the views</a>
+        </div>
       </div>
-      <div class="cta">
-        <a class="btn" href="#api-key">Get your API key &rarr;</a>
-        <a class="btn" href="#connect">Connect a client</a>
-      </div>
+      <figure class="shot">
+        <picture>
+          <source srcset="/static/hero-dark.png" media="(prefers-color-scheme: dark)">
+          <img src="/static/hero-light.png" width="1728" height="1468" alt="The wellness dashboard view inside a chat: a Body Battery ring, a sleep chart and tiles for steps, resting heart rate, HRV and stress (sample data)">
+        </picture>
+        <figcaption>Interactive views in hosts that support MCP Apps &middot; sample data</figcaption>
+      </figure>
     </div>
   </div>
+
+  <section id="apps">
+    <div class="wrap">
+      <h2>Interactive views</h2>
+      <p class="sub">In hosts that support <a href="https://modelcontextprotocol.io/extensions/apps/overview" rel="noopener">MCP Apps</a>, some answers open as a view you can click through. The views are bundled with the server, load nothing from the internet, and read data only through your own connection. Other clients get the same data as text.</p>
+      <div class="apps">
+$apps_cards
+      </div>
+      <div class="card works">
+        <h3>Works in</h3>
+        <ul>
+          <li><strong>Claude Desktop</strong> &mdash; <a href="https://claude.com/docs/connectors/building/mcp-apps/getting-started" rel="noopener">Claude's MCP Apps docs</a>. Connect with <code>mcp-remote</code> as shown below, so the key header is sent.</li>
+          <li><strong>ChatGPT</strong> &mdash; implements the MCP Apps UI standard (<a href="https://developers.openai.com/plugins/build/app-quickstart" rel="noopener">OpenAI quickstart</a>).</li>
+          <li><strong>VS Code with GitHub Copilot</strong> &mdash; <a href="https://code.visualstudio.com/blogs/2026/01/26/mcp-apps-support" rel="noopener">announced January 2026</a>, first in VS Code Insiders.</li>
+          <li>Also listed in the <a href="https://modelcontextprotocol.io/extensions/apps/overview" rel="noopener">MCP Apps overview</a>: Microsoft 365 Copilot, Goose, Postman, MCPJam and Archestra.AI.</li>
+        </ul>
+        <p>This server needs your key in the <code>X-Garmin-Api-Key</code> header, so the host has to be able to send a custom header (or use a bridge such as <code>mcp-remote</code>). Claude.ai on the web and mobile can't send custom headers yet, so it can't connect.</p>
+      </div>
+    </div>
+  </section>
 
   <section>
     <div class="wrap">
@@ -204,7 +265,6 @@ $tools_rows
         </table>
       </div>
       <p class="sub" style="margin-top:16px"><strong>Prompts:</strong> $prompts_list.</p>
-      <p class="sub"><strong>Apps</strong> (interactive views in hosts that support MCP Apps; no maps, no outside network access): $apps_list.</p>
     </div>
   </section>
 
