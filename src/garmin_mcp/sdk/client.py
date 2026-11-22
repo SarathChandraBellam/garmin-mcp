@@ -10,6 +10,8 @@ PLAN-garmin-official-oauth.md.
 
 from __future__ import annotations
 
+import json
+import re
 from typing import Any, Protocol
 
 import httpx
@@ -17,6 +19,30 @@ import httpx
 from . import _http
 from .errors import GarminApiError, GarminAuthError
 from .token import cache, key_fingerprint, personal_token
+
+_MAX_DETAIL = 200
+_UNPRINTABLE = re.compile(r"[^\x20-\x7e]+")
+
+
+def error_detail(body: str, *secrets: str) -> str:
+    """A short, single-line, secret-free excerpt of a Garmin error body (or "" if unusable)."""
+    text = body.strip()
+    try:
+        parsed = json.loads(text)
+    except ValueError:
+        parsed = None
+    if isinstance(parsed, dict):
+        for k in ("message", "errorMessage", "error_description", "error", "detail"):
+            if isinstance(parsed.get(k), str) and parsed[k].strip():
+                text = parsed[k]
+                break
+    if not text or text.lstrip().startswith("<"):  # empty, or an HTML error page
+        return ""
+    for secret in secrets:
+        if secret:
+            text = text.replace(secret, "[redacted]")
+    text = " ".join(_UNPRINTABLE.sub(" ", text).split())
+    return text if len(text) <= _MAX_DETAIL else text[: _MAX_DETAIL - 3] + "..."
 
 
 class GarminSource(Protocol):
@@ -54,9 +80,9 @@ class PersonalApi:
         if r.status_code == 429:
             raise GarminApiError("Garmin rate limit (HTTP 429); try again later", 429)
         if not r.is_success:
-            raise GarminApiError(
-                f"Garmin API returned HTTP {r.status_code} for {path.split('/')[1]}", r.status_code
-            )
+            msg = f"Garmin API returned HTTP {r.status_code} for {path.split('/')[1]}"
+            detail = error_detail(r.text, token, self._key)
+            raise GarminApiError(f"{msg}: {detail}" if detail else msg, r.status_code)
         return r.json()
 
     # ---- typed helpers (Personal API paths, per garmin/connect-personal-api-python) ----

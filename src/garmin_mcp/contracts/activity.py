@@ -23,7 +23,6 @@ class ActivitySummary(BaseModel):
     type: str | None = None
     start_local: str | None = None
     start_gmt: str | None = None
-    location: str | None = None
     distance_km: float | None = None
     duration_min: float | None = None
     moving_min: float | None = None
@@ -45,7 +44,6 @@ class ActivitySummary(BaseModel):
             type=(a.get("activityType") or {}).get("typeKey"),
             start_local=a.get("startTimeLocal"),
             start_gmt=a.get("startTimeGMT"),
-            location=a.get("locationName"),
             distance_km=_scaled(a.get("distance"), 1 / 1000, 3),
             duration_min=_scaled(a.get("duration"), 1 / 60, 1),
             moving_min=_scaled(a.get("movingDuration"), 1 / 60, 1),

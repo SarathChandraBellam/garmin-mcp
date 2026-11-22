@@ -78,3 +78,47 @@ STEPS = [
     {"calendarDate": "2026-01-14", "values": {"totalSteps": 8000}},
     {"calendarDate": "2026-01-15", "values": {"totalSteps": 10234}},
 ]
+
+ACTIVITY_DETAIL = {
+    "activityId": 1001,
+    "activityName": "Morning Run",
+    "activityUUID": "00000000-0000-0000-0000-000000000000",
+    "userProfileId": 999999,
+    "locationName": "Example City",
+    "summaryDTO": {"distance": 5000.0, "startLatitude": 12.3456, "deviceId": 4242},
+}
+
+SLEEP_NULL_SKELETON = {
+    "dailySleepDTO": {
+        "id": None,
+        "calendarDate": "2020-01-01",
+        "sleepTimeSeconds": None,
+        "deepSleepSeconds": None,
+        "sleepFromDevice": False,
+    },
+    "sleepMovement": [],
+    "remSleepData": None,
+}
+
+HRV_DAY = {
+    "hrvSummary": {"calendarDate": "2026-01-15", "lastNightAvg": 48, "weeklyAvg": 50},
+    "hrvReadings": [{"hrvValue": 40 + i % 10, "readingTimeGMT": f"t{i}"} for i in range(66)],
+}
+
+SLEEP_SUMMARIES = [
+    {"calendarDate": "2026-01-14", "sleepTimeSeconds": 25_000, "sleepNeed": {"deviceId": 4242}},
+    {"calendarDate": "2026-01-16", "sleepTimeSeconds": 26_000},  # wake date after the window
+]
+
+WEIGHT_RANGE = {
+    "dailyWeightSummaries": [
+        {
+            "summaryDate": "2026-01-15",
+            "minWeight": 81_200.0,
+            "maxWeight": 81_200.0,
+            "allWeightMetrics": [{"weight": 81_200.0, "date": 1768435200000}],
+        }
+    ],
+    "previousDateWeight": {"calendarDate": "2026-01-01", "weight": 81_900.0},
+    "nextDateWeight": None,
+}
