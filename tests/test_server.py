@@ -176,8 +176,12 @@ def test_tools_list_and_get_activities(client: TestClient):
         },
         json={"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
     )
-    names = [t["name"] for t in listed.json()["result"]["tools"]]
+    tools = listed.json()["result"]["tools"]
+    names = [t["name"] for t in tools]
     assert "get_activities" in names
+    annotations = next(t for t in tools if t["name"] == "get_activities")["annotations"]
+    assert annotations["readOnlyHint"] is True
+    assert annotations["idempotentHint"] is True
     assert "query_stats" in names
 
     err, text = _call(client, "get_activities", {"limit": 5})

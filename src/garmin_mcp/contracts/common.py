@@ -28,7 +28,7 @@ Metric = Literal[
     "wellness_activities",
 ]
 
-READ_ONLY = ToolAnnotations(readOnlyHint=True, openWorldHint=True, idempotentHint=True)
+READ_ONLY = ToolAnnotations(read_only_hint=True, open_world_hint=True, idempotent_hint=True)
 
 
 class Note(BaseModel):
