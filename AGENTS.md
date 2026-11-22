@@ -54,25 +54,20 @@ tests/           pytest + respx; fixtures.py holds synthetic Garmin payloads
 scripts/e2e.py   opt-in live end-to-end check (needs a real key; never in CI)
 ```
 
-## Adding or changing a tool
+## Skills
 
-1. Add a typed helper to `PersonalApi` in `src/garmin_mcp/sdk/client.py` if a new
-   Garmin endpoint is needed. Tools must not call `httpx` directly.
-2. Write the tool as a plain function in the right `src/garmin_mcp/tools/*.py` module:
-   - get the client with `source()` and wrap Garmin calls in `call(...)` (maps SDK
-     errors to `ToolError`);
-   - use `DateStr` / `OptDate` from `contracts` for dates and `today()` / `shift()` /
-     `check_range()` from `_context`;
-   - pass output through `no_pii(...)` (and `strip_samples(...)` for large sample arrays);
-   - return a `Note(...).model_dump()` when Garmin has no data rather than `None`;
-   - the **docstring is the tool description** shown to MCP clients — keep it one
-     clear line about what it returns.
-3. Register it in `ALL_TOOLS` in `src/garmin_mcp/tools/__init__.py` (or the module's
-   `TOOLS` tuple). Every tool is registered with the `READ_ONLY` annotations.
-4. Add a test in `tests/` using `respx` to mock the Garmin endpoint and synthetic data
-   from `tests/fixtures.py`.
-5. Update the tools table in `README.md` and add an entry under `[Unreleased]` in
-   `CHANGELOG.md`. The landing page picks the tool up automatically.
+Task playbooks live in **`.agents/skills/<name>/SKILL.md`** (the canonical location;
+`.claude/skills` is a symlink to it, and `CLAUDE.md` is a symlink to this file).
+Read the matching skill before starting one of these tasks:
+
+| Skill | Use it to |
+|---|---|
+| [`run-checks`](.agents/skills/run-checks/SKILL.md) | Run and fix the CI checks (black, ruff, mypy, pytest) |
+| [`add-mcp-tool`](.agents/skills/add-mcp-tool/SKILL.md) | Add or change a read-only MCP tool: SDK helper, tool, registration, tests, docs |
+| [`bump-dependency`](.agents/skills/bump-dependency/SKILL.md) | Add or upgrade a dependency with uv (including the pinned `fastmcp`) |
+
+New skills go in `.agents/skills/<name>/SKILL.md` with `name` and `description`
+front matter. Edit `AGENTS.md`, never `CLAUDE.md`; don't replace the symlinks with copies.
 
 New environment variables go in `config.py` (`Settings`) and the README's
 self-hosting table.
