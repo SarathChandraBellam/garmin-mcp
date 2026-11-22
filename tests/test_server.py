@@ -78,14 +78,12 @@ def test_landing_info_and_healthz(client: TestClient):
     assert client.get("/healthz").json() == {"ok": True}
 
 
-def test_mcp_missing_key_is_401_with_resource_metadata(client: TestClient):
+def test_mcp_missing_key_is_401(client: TestClient):
     r = client.post("/mcp", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
     assert r.status_code == 401
-    challenge = r.headers.get("www-authenticate", "")
-    assert challenge.startswith("Bearer")
-    assert 'resource_metadata="http://localhost/.well-known/oauth-protected-resource/mcp"' in (
-        challenge
-    )
+    assert r.json()["error"] == "missing_garmin_api_key"
+    assert "personalApiToken" in r.json()["error_description"]
+    assert r.headers["www-authenticate"].startswith("Bearer")
 
 
 @respx.mock
@@ -97,7 +95,23 @@ def test_mcp_invalid_key_is_401(client: TestClient):
         json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
     )
     assert r.status_code == 401
-    assert r.json()["error"] == "invalid_token"
+    assert r.json()["error"] == "invalid_garmin_api_key"
+
+
+@respx.mock
+def test_mcp_garmin_down_is_502(client: TestClient):
+    respx.post(PERSONAL_BASE + TOKEN_PATH).mock(return_value=httpx.Response(503, text="down"))
+    r = client.post(
+        "/mcp",
+        headers={"x-garmin-api-key": "test-key-1"},
+        json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+    )
+    assert r.status_code == 502
+    assert r.json()["error"] == "garmin_unavailable"
+
+
+def test_no_oauth_endpoints(client: TestClient):
+    assert client.get("/.well-known/oauth-authorization-server").status_code == 404
 
 
 def test_https_required_for_non_local_hosts():

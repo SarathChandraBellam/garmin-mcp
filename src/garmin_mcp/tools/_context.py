@@ -8,9 +8,9 @@ from typing import Any, TypeVar
 from zoneinfo import ZoneInfo
 
 from fastmcp.exceptions import ToolError
-from fastmcp.server.dependencies import get_access_token
+from fastmcp.server.dependencies import get_http_headers
 
-from ..auth.keys import GARMIN_KEY_CLAIM
+from ..auth.keys import extract_key
 from ..config import get_settings
 from ..sdk import GarminApiError, GarminAuthError, PersonalApi
 
@@ -18,17 +18,15 @@ T = TypeVar("T")
 
 
 def current_garmin_key() -> str:
-    """The caller's Garmin key: from the verified OAuth/bearer token (HTTP) or env (stdio)."""
-    token = get_access_token()
-    if token is not None:
-        key = token.claims.get(GARMIN_KEY_CLAIM)
-        if isinstance(key, str) and key:
-            return key
+    """The caller's Garmin key: from the request headers (HTTP) or GARMIN_API_KEY (stdio)."""
+    key = extract_key(get_http_headers(include_all=True))
+    if key:
+        return key
     env = get_settings().garmin_api_key
     if env is not None and env.get_secret_value().strip():
         return env.get_secret_value().strip()
     raise ToolError(
-        "No Garmin Personal API key: connect over OAuth, send header X-Garmin-Api-Key (HTTP) "
+        "No Garmin Personal API key: send header X-Garmin-Api-Key (HTTP) "
         "or set GARMIN_API_KEY (stdio)."
     )
 

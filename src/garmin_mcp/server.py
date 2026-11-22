@@ -1,10 +1,8 @@
-"""The FastMCP server: tools + stateless OAuth 2.1 auth, served over Streamable HTTP at /mcp.
+"""The FastMCP server: read-only Garmin tools over stateless Streamable HTTP at /mcp.
 
-Auth (HTTP): MCP clients discover ``/.well-known/oauth-protected-resource/mcp`` from the 401
-challenge and sign in with OAuth 2.1 + PKCE; the user pastes their Garmin Personal API key on
-the consent page. Clients may instead send the key directly as ``X-Garmin-Api-Key`` or
-``Authorization: Bearer <key>``. In stdio mode the key comes from ``GARMIN_API_KEY``.
-Headers are never logged.
+Auth (HTTP): each MCP client sends ITS OWN Garmin Personal API key on every request,
+``X-Garmin-Api-Key: <key>`` (preferred) or ``Authorization: Bearer <key>``. Missing or invalid
+key -> 401. In stdio mode the key comes from ``GARMIN_API_KEY``. Headers are never logged.
 """
 
 from __future__ import annotations
@@ -15,9 +13,7 @@ from fastmcp import FastMCP
 from starlette.applications import Starlette
 from starlette.types import Receive, Scope, Send
 
-from .auth import GarminOAuthProvider
-from .auth.consent import consent_routes
-from .auth.middleware import GarminKeyHeaderMiddleware, HttpsOnlyMiddleware
+from .auth import GarminKeyGate, HttpsOnlyMiddleware
 from .config import Settings, get_settings
 from .tools import register_all
 from .web.pages import MCP_PATH
@@ -30,12 +26,10 @@ INSTRUCTIONS = (
 )
 
 
-def create_mcp(settings: Settings | None = None) -> FastMCP:
-    settings = settings or get_settings()
-    provider = GarminOAuthProvider(settings)
-    mcp = FastMCP(name="garmin-mcp", instructions=INSTRUCTIONS, auth=provider)
+def create_mcp() -> FastMCP:
+    mcp = FastMCP(name="garmin-mcp", instructions=INSTRUCTIONS)
     register_all(mcp)
-    for route in [*page_routes, *consent_routes(provider)]:
+    for route in page_routes:
         mcp.custom_route(route.path, methods=sorted(route.methods or ["GET"]))(route.endpoint)
     return mcp
 
@@ -59,7 +53,8 @@ class App:
 
     def _wrap(self, app: Any) -> Any:
         return HttpsOnlyMiddleware(
-            GarminKeyHeaderMiddleware(app), allow_insecure=self.settings.allow_insecure_http
+            GarminKeyGate(app, path_prefix=MCP_PATH),
+            allow_insecure=self.settings.allow_insecure_http,
         )
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:

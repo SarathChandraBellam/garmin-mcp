@@ -5,8 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 
 KEY_HEADER = "x-garmin-api-key"
-GARMIN_KEY_CLAIM = "garmin_key"
-SCOPE = "garmin:read"
+CREATE_KEY_URL = "https://connect.garmin.com/app/settings/personalApiToken"
 
 
 def extract_key(headers: Mapping[str, str]) -> str | None:

@@ -1,6 +1,6 @@
-"""MCP authorization: stateless OAuth 2.1 + PKCE, with Garmin keys sealed inside tokens."""
+"""API-key auth: each caller sends their own Garmin Personal API key on every request."""
 
-from .keys import GARMIN_KEY_CLAIM, KEY_HEADER, SCOPE, extract_key
-from .provider import GarminOAuthProvider
+from .keys import CREATE_KEY_URL, KEY_HEADER, extract_key
+from .middleware import GarminKeyGate, HttpsOnlyMiddleware
 
-__all__ = ["GARMIN_KEY_CLAIM", "KEY_HEADER", "SCOPE", "GarminOAuthProvider", "extract_key"]
+__all__ = ["CREATE_KEY_URL", "KEY_HEADER", "GarminKeyGate", "HttpsOnlyMiddleware", "extract_key"]

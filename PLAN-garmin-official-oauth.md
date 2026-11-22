@@ -50,10 +50,13 @@ and access to the evaluation environment.
 5. **Selection:** `GARMIN_SOURCE=personal|health` env var; header decides per request
    (`X-Garmin-Api-Key` → Personal API, `Authorization: Bearer <oauth token>` → Health API).
 
-### Done: OAuth for the MCP endpoint itself (without Garmin partner access)
+### Later: OAuth for the MCP endpoint itself (without Garmin partner access)
 
-Shipped in 0.2.0 (`src/garmin_mcp/auth/`): a self-issued, stateless OAuth 2.1 layer built on
-FastMCP's `OAuthProvider`. Client ids (DCR), authorization codes and access/refresh tokens are
-AES-GCM sealed blobs; PKCE S256; scope `garmin:read`; the consent page asks for the user's Garmin
-Personal API key, which is sealed inside the issued tokens. A Health API source would replace the
-consent step with a redirect to Garmin's own OAuth, keeping the same MCP-facing flow.
+Today the server is API-key only (like a GitHub PAT). That rules out clients that can't send a
+custom header, such as Claude.ai web and mobile. If we need them, add a self-issued OAuth 2.1
+layer with FastMCP's `OAuthProvider` in `src/garmin_mcp/auth/`: client ids from Dynamic Client
+Registration, authorization codes and tokens; PKCE S256; scope `garmin:read`. The consent page
+would ask for the user's Garmin Personal API key, and the key would be sealed (AES-GCM, server
+secret) inside the issued tokens so the server still stores nothing. Keep the header key path
+alongside it and make OAuth opt-in (for example `ENABLE_OAUTH=1` plus `GARMIN_MCP_SECRET`).
+A working version of this was prototyped in commit a0ed009.

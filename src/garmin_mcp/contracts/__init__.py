@@ -1,27 +1,17 @@
-"""Pydantic contracts shared by the SDK, the MCP tools and the auth layer."""
+"""Pydantic contracts shared by the SDK and the MCP tools."""
 
 from .activity import ActivitySummary
-from .auth import (
-    AccessTokenClaims,
-    AuthCodeClaims,
-    ClientClaims,
-    PendingAuthorization,
-    RefreshTokenClaims,
-)
 from .common import READ_ONLY, DateStr, Metric, Note, OptDate
+from .errors import AuthErrorBody
 from .wellness import TrainingReadinessProxy
 
 __all__ = [
     "READ_ONLY",
-    "AccessTokenClaims",
     "ActivitySummary",
-    "AuthCodeClaims",
-    "ClientClaims",
+    "AuthErrorBody",
     "DateStr",
     "Metric",
     "Note",
     "OptDate",
-    "PendingAuthorization",
-    "RefreshTokenClaims",
     "TrainingReadinessProxy",
 ]

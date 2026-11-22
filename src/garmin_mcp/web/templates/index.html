@@ -85,7 +85,7 @@ footer p { margin: 0 0 8px; max-width: 80ch; }
       <span class="pill">MCP server &middot; v$version</span>
       <h1>Your Garmin data, inside your AI assistant.</h1>
       <p class="lead">Ask Claude, Cursor or any MCP client about your sleep, training, heart rate and daily stats.
-        This server uses Garmin's official <strong>Personal API</strong> and your own key. It is stateless and stores nothing.</p>
+        This server uses Garmin's official <strong>Personal API</strong> with a key you create. It is stateless and stores nothing.</p>
       <div class="endpoint">
         <code id="mcp-url">$mcp_url</code>
         <button class="btn primary" data-copy="#mcp-url">Copy MCP URL</button>
@@ -103,7 +103,7 @@ footer p { margin: 0 0 8px; max-width: 80ch; }
       <p class="sub">Three steps, about two minutes. You need no password and no database, and nobody else holds your key.</p>
       <div class="grid3">
         <div class="card step"><div class="n">1</div><h3>Create a key</h3><p>Create a Personal API key in Garmin Connect. You choose how long it lasts and can revoke it at any time.</p></div>
-        <div class="card step"><div class="n">2</div><h3>Add the server</h3><p>Point your MCP client at <code>/mcp</code>. It signs in with OAuth, and you paste your key once on a consent page.</p></div>
+        <div class="card step"><div class="n">2</div><h3>Add the server</h3><p>Point your MCP client at <code>/mcp</code> and send your key in the <code>X-Garmin-Api-Key</code> header.</p></div>
         <div class="card step"><div class="n">3</div><h3>Ask away</h3><p>"How did I sleep this week?" "Compare my resting HR to last month." Each call fetches live from Garmin.</p></div>
       </div>
     </div>
@@ -119,14 +119,14 @@ footer p { margin: 0 0 8px; max-width: 80ch; }
           <li>Open <a href="https://connect.garmin.com/app/settings/personalApiToken" rel="noopener"><strong>Settings &rarr; Personal API Key</strong></a>.</li>
           <li>Click <strong>Create Key</strong>, read and accept Garmin's Personal API terms, and choose an expiry: 30, 90, 180 or 365 days.</li>
           <li><strong>Copy the key now.</strong> Garmin shows it only once. Store it in a password manager.</li>
-          <li>Connect a client (below). When the browser opens this server's consent page, paste the key and click <strong>Allow</strong>.</li>
+          <li>Put the key in an environment variable such as <code>GARMIN_API_KEY</code> and add the server to your client (below).</li>
         </ol>
         <aside class="card">
           <h3>Good to know</h3>
           <ul>
             <li>Treat the key like a password. Anyone who has it can read your Garmin data.</li>
-            <li>To revoke the key, open the same settings page. Every token made from it stops working.</li>
-            <li>When the key expires, create a new one and reconnect your client.</li>
+            <li>To revoke the key, open the same settings page. It stops working at once.</li>
+            <li>When the key expires, create a new one and update your client config.</li>
             <li>Some metrics, such as Training Readiness and Training Status, are not in the Personal API.</li>
           </ul>
         </aside>
@@ -137,50 +137,57 @@ footer p { margin: 0 0 8px; max-width: 80ch; }
   <section id="connect">
     <div class="wrap">
       <h2>Connect your client</h2>
-      <p class="sub">Clients that support MCP OAuth find the sign-in by themselves. Older clients can send the key in a header instead.</p>
+      <p class="sub">Every request carries your key in <code>X-Garmin-Api-Key</code> (or <code>Authorization: Bearer &lt;key&gt;</code>). Any client that can send a custom header works.</p>
       <div class="tabs" role="tablist">
-        <button role="tab" aria-selected="true" data-tab="t-claude">Claude</button>
-        <button role="tab" aria-selected="false" data-tab="t-code">Claude Code</button>
+        <button role="tab" aria-selected="true" data-tab="t-code">Claude Code</button>
         <button role="tab" aria-selected="false" data-tab="t-cursor">Cursor</button>
         <button role="tab" aria-selected="false" data-tab="t-vscode">VS Code</button>
-        <button role="tab" aria-selected="false" data-tab="t-header">Header (no OAuth)</button>
+        <button role="tab" aria-selected="false" data-tab="t-desktop">Claude Desktop</button>
       </div>
-      <div class="card panel" id="t-claude" role="tabpanel">
-        <p>In Claude, open <strong>Settings &rarr; Connectors &rarr; Add custom connector</strong> and enter this URL:</p>
-        <div class="snippet"><pre id="s1">$mcp_url</pre><button class="btn copy" data-copy="#s1">Copy</button></div>
-        <p class="muted">Claude opens the consent page. Paste your Garmin key there and click Allow.</p>
-      </div>
-      <div class="card panel" id="t-code" role="tabpanel" hidden>
-        <div class="snippet"><pre id="s2">claude mcp add --transport http garmin $mcp_url</pre><button class="btn copy" data-copy="#s2">Copy</button></div>
-        <p class="muted">Then run <code>/mcp</code> in Claude Code and choose <strong>Authenticate</strong>.</p>
+      <div class="card panel" id="t-code" role="tabpanel">
+        <div class="snippet"><pre id="s1">claude mcp add --transport http garmin $mcp_url \
+  --header "X-Garmin-Api-Key: &lt;your key&gt;"</pre><button class="btn copy" data-copy="#s1">Copy</button></div>
       </div>
       <div class="card panel" id="t-cursor" role="tabpanel" hidden>
         <p>Add this to <code>~/.cursor/mcp.json</code>:</p>
-        <div class="snippet"><pre id="s3">{
-  "mcpServers": {
-    "garmin": { "url": "$mcp_url" }
-  }
-}</pre><button class="btn copy" data-copy="#s3">Copy</button></div>
-      </div>
-      <div class="card panel" id="t-vscode" role="tabpanel" hidden>
-        <p>Add this to <code>.vscode/mcp.json</code>:</p>
-        <div class="snippet"><pre id="s4">{
-  "servers": {
-    "garmin": { "type": "http", "url": "$mcp_url" }
-  }
-}</pre><button class="btn copy" data-copy="#s4">Copy</button></div>
-      </div>
-      <div class="card panel" id="t-header" role="tabpanel" hidden>
-        <p>Send your key on every request with <code>X-Garmin-Api-Key</code> (or <code>Authorization: Bearer &lt;key&gt;</code>):</p>
-        <div class="snippet"><pre id="s5">{
+        <div class="snippet"><pre id="s2">{
   "mcpServers": {
     "garmin": {
       "url": "$mcp_url",
-      "headers": { "X-Garmin-Api-Key": "&lt;your key&gt;" }
+      "headers": { "X-Garmin-Api-Key": "&#36;{env:GARMIN_API_KEY}" }
     }
   }
-}</pre><button class="btn copy" data-copy="#s5">Copy</button></div>
+}</pre><button class="btn copy" data-copy="#s2">Copy</button></div>
       </div>
+      <div class="card panel" id="t-vscode" role="tabpanel" hidden>
+        <p>Add this to <code>.vscode/mcp.json</code>. VS Code asks for the key once and stores it securely:</p>
+        <div class="snippet"><pre id="s3">{
+  "inputs": [
+    { "type": "promptString", "id": "garmin-key", "description": "Garmin Personal API key", "password": true }
+  ],
+  "servers": {
+    "garmin": {
+      "type": "http",
+      "url": "$mcp_url",
+      "headers": { "X-Garmin-Api-Key": "&#36;{input:garmin-key}" }
+    }
+  }
+}</pre><button class="btn copy" data-copy="#s3">Copy</button></div>
+      </div>
+      <div class="card panel" id="t-desktop" role="tabpanel" hidden>
+        <p>Add this to <code>claude_desktop_config.json</code>. It uses <code>mcp-remote</code> to send the header:</p>
+        <div class="snippet"><pre id="s4">{
+  "mcpServers": {
+    "garmin": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "$mcp_url",
+               "--header", "X-Garmin-Api-Key:&#36;{GARMIN_API_KEY}"],
+      "env": { "GARMIN_API_KEY": "&lt;your key&gt;" }
+    }
+  }
+}</pre><button class="btn copy" data-copy="#s4">Copy</button></div>
+      </div>
+      <p class="muted" style="margin-top:12px;font-size:14px">Claude.ai on the web and mobile can't send custom headers, so it can't connect yet.</p>
     </div>
   </section>
 
@@ -203,8 +210,8 @@ $tools_rows
     <div class="wrap">
       <h2>Privacy and security</h2>
       <div class="trust">
-        <div class="card"><h3>Stores nothing</h3><p>There is no database. Your key is encrypted inside the OAuth token that your client holds. The server decrypts it for each request and then discards it.</p></div>
-        <div class="card"><h3>Standard MCP auth</h3><p>OAuth 2.1 with PKCE, dynamic client registration and protected-resource metadata, as the MCP authorization spec requires.</p></div>
+        <div class="card"><h3>Stores nothing</h3><p>There is no database. Your key stays in your client's config and arrives with each request. The server uses it for that request and then forgets it.</p></div>
+        <div class="card"><h3>Your key, your data</h3><p>The deployment holds no keys of its own. Each client sends its own key, so it can only read its own owner's data. Headers are never logged.</p></div>
         <div class="card"><h3>Official API only</h3><p>The server uses Garmin's Personal API. It does not ask for your password and does not scrape data.</p></div>
         <div class="card"><h3>Open source</h3><p>The code is MIT licensed. You can run it yourself or read exactly what it does <a href="https://github.com/SarathChandraBellam/garmin-mcp">on GitHub</a>.</p></div>
       </div>
@@ -216,7 +223,7 @@ $tools_rows
   <div class="wrap">
     <p>This project is not affiliated with, endorsed by, or sponsored by Garmin Ltd. or its subsidiaries. "Garmin" and "Garmin Connect" are trademarks of Garmin.
       By using this server you agree to <a href="https://www.garmin.com/legal/" rel="noopener">Garmin's terms</a> and the Personal API terms shown when you create a key.</p>
-    <p>MCP endpoint <code>/mcp</code> &middot; <a href="/info">/info</a> &middot; <a href="/.well-known/oauth-authorization-server">OAuth metadata</a> &middot; <a href="/healthz">/healthz</a></p>
+    <p>MCP endpoint <code>/mcp</code> &middot; <a href="/info">/info</a> &middot; <a href="/healthz">/healthz</a></p>
   </div>
 </footer>
 

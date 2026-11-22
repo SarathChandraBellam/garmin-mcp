@@ -1,1 +1,1 @@
-"""Human-facing HTML: the landing page and the OAuth consent page."""
+"""Human-facing HTML: the product landing page with the API-key guide."""

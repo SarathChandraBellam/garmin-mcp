@@ -52,8 +52,8 @@ def main() -> int:
     }
     r = rpc("initialize", init)
     check(
-        r.status_code == 401 and "resource_metadata=" in r.headers.get("www-authenticate", ""),
-        f"no key -> {r.status_code} {r.headers.get('www-authenticate')}",
+        r.status_code == 401 and r.json()["error"] == "missing_garmin_api_key",
+        f"no key -> {r.status_code} {r.json().get('error')}",
     )
     r = rpc("tools/list", headers={"x-garmin-api-key": "not-a-real-key"})
     check(r.status_code == 401, f"bogus key -> {r.status_code} {r.json().get('error')}")

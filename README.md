@@ -3,7 +3,6 @@
 [![CI](https://github.com/SarathChandraBellam/garmin-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/SarathChandraBellam/garmin-mcp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![MCP](https://img.shields.io/badge/MCP-2025--06--18-blue)](https://modelcontextprotocol.io)
-[![Auth: OAuth 2.1](https://img.shields.io/badge/auth-OAuth%202.1%20%2B%20PKCE-blue)](https://modelcontextprotocol.io/specification/2025-06-18/basic/authorization)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org)
 
@@ -11,12 +10,10 @@ A **stateless, bring-your-own-key** [Model Context Protocol](https://modelcontex
 server that lets an MCP client (Cursor, Claude, and others) read **your** Garmin
 Connect data through Garmin's official **Personal API**.
 
-The server never stores your key or your fitness data. Clients sign in with the
-standard **MCP authorization flow (OAuth 2.1 + PKCE)**: you paste your Garmin key
-once on a consent page, and it is sealed (AES-GCM) inside the token your client
-holds. Each request carries that token; the server unseals the key, exchanges it
-for a short-lived Garmin token (held in memory only), calls Garmin, returns the
-result, and forgets it.
+The server never stores your key or your fitness data. Each request carries the
+key (like a GitHub personal access token), the server exchanges it for a
+short-lived Garmin token (held in memory only), calls Garmin, returns the result,
+and forgets it.
 
 ## Why this exists
 
@@ -30,10 +27,6 @@ database or handing a password to a third party.
 
 - Official Garmin Connect Personal API (no password login, no unofficial scraping)
 - Multi-tenant: every client sends **its own** key; the deployment holds none
-- MCP authorization spec: OAuth 2.1 authorization code + PKCE (S256), Dynamic
-  Client Registration (RFC 7591), protected-resource metadata (RFC 9728),
-  authorization-server metadata (RFC 8414), resource indicators (RFC 8707) and
-  refresh tokens. Everything is stateless (sealed blobs, no database)
 - MCP endpoint at **`/mcp`**; product page with an API-key guide at **`/`**
 - Stateless Streamable HTTP (`stateless_http=True`, JSON responses, MCP 2025-06-18)
 - Also runs locally over **stdio**
@@ -46,27 +39,16 @@ database or handing a password to a third party.
 
 | The server stores | The client sends |
 |---|---|
-| Nothing durable. A Garmin bearer token may sit in memory on a warm instance, keyed by SHA-256 of the API key, and dies with the process. | An OAuth access token (`Authorization: Bearer gmcp_at_…`) that has your key sealed inside it. A raw key in `X-Garmin-Api-Key` or `Authorization: Bearer` also works. For local stdio, the key comes from `GARMIN_API_KEY`. |
+| Nothing durable. A Garmin bearer token may sit in memory on a warm instance, keyed by SHA-256 of the API key, and dies with the process. | Your Personal API key on every HTTP request (`X-Garmin-Api-Key` or `Authorization: Bearer`), or `GARMIN_API_KEY` for local stdio. |
 
-### How the OAuth flow works
+A missing key returns `401 missing_garmin_api_key`, and a key Garmin rejects
+returns `401 invalid_garmin_api_key`. If Garmin is unreachable the server
+returns `502` (or `429` when Garmin rate-limits). Headers are never logged.
+Create, rotate, and revoke keys in Garmin Connect.
 
-1. The client calls `/mcp` without a token and gets `401` with
-   `WWW-Authenticate: Bearer resource_metadata=".../.well-known/oauth-protected-resource/mcp"`.
-2. The client reads the protected-resource and authorization-server metadata,
-   then registers itself at `/register`. The `client_id` it gets back is a sealed
-   blob, so the server keeps no client table.
-3. `/authorize` (PKCE S256) redirects the browser to `/oauth/consent`. That page
-   shows the client name and where it will return to. You paste your Garmin
-   Personal API key, and the server checks it with Garmin.
-4. The server redirects back with a sealed, single-use authorization code that
-   is valid for 5 minutes. `/token` exchanges it for an access token (1 h) and a
-   refresh token (30 d). Each of these has your key AES-GCM-encrypted inside it.
-5. The token is bound to its purpose: an access token cannot be used as a code
-   or a refresh token, and the reverse is also true.
-
-Stateless tokens cannot be revoked on the server. To cut off access, revoke the
-Garmin key in Garmin Connect, and every token made from it stops working at once.
-Headers are never logged.
+**Limitation:** there is no OAuth sign-in, so clients that can't send a custom
+header (Claude.ai on the web and mobile, for example) can't connect yet. Adding
+OAuth later is sketched in [PLAN-garmin-official-oauth.md](PLAN-garmin-official-oauth.md).
 
 ## Disclaimer
 
@@ -85,25 +67,18 @@ you are authorised to use (typically your own).
 
 ## Quick start
 
-### Hosted HTTP with OAuth (recommended)
+### Hosted HTTP
 
-Endpoint: `https://<DEPLOY_URL>/mcp`. Clients that support MCP OAuth only need
-the URL. They open the consent page, where you paste your key.
-
-- **Claude:** Settings → Connectors → *Add custom connector* → `https://<DEPLOY_URL>/mcp`
-- **Claude Code:** `claude mcp add --transport http garmin https://<DEPLOY_URL>/mcp`, then `/mcp` → *Authenticate*
-- **Cursor** (`~/.cursor/mcp.json`): `{ "mcpServers": { "garmin": { "url": "https://<DEPLOY_URL>/mcp" } } }`
-- **VS Code** (`.vscode/mcp.json`): `{ "servers": { "garmin": { "type": "http", "url": "https://<DEPLOY_URL>/mcp" } } }`
-
-Open `https://<DEPLOY_URL>/` for the same guide with copy-ready snippets.
-
-### Hosted HTTP with a header (clients without OAuth)
+Endpoint: `https://<DEPLOY_URL>/mcp`. Open `https://<DEPLOY_URL>/` for the
+API-key guide and copy-ready snippets.
 
 ```http
 X-Garmin-Api-Key: <your key>
 ```
 
 (`Authorization: Bearer <your key>` is also accepted.)
+
+**Cursor** (`~/.cursor/mcp.json`):
 
 ```json
 {
@@ -114,6 +89,13 @@ X-Garmin-Api-Key: <your key>
     }
   }
 }
+```
+
+**Claude Code:**
+
+```bash
+claude mcp add --transport http garmin https://<DEPLOY_URL>/mcp \
+  --header "X-Garmin-Api-Key: $GARMIN_API_KEY"
 ```
 
 **Claude Desktop** (`claude_desktop_config.json`, via `mcp-remote`):
@@ -190,24 +172,18 @@ lifespan events.
 
 ```bash
 uv sync --no-dev
-export PUBLIC_BASE_URL=https://garmin.example.com
-export GARMIN_MCP_SECRET="$(openssl rand -base64 48)"
 uv run uvicorn garmin_mcp.asgi:app --host 0.0.0.0 --port 8000 --proxy-headers
 ```
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `PUBLIC_BASE_URL` | `http://localhost:8000` | Public origin. It is used as the OAuth issuer, in the metadata and on the landing page. It must be HTTPS unless it is localhost. |
-| `GARMIN_MCP_SECRET` | random for each process | Seals client ids, codes and tokens. **Set it in production.** Without it, tokens stop working after a restart and do not work across instances. Changing it signs out every client. |
+| `PUBLIC_BASE_URL` | the request's origin | Public origin shown in the landing-page snippets. Set it if your proxy rewrites the host. |
 | `DEFAULT_TIMEZONE` | `UTC` | IANA zone used to decide what "today" means. |
-| `ACCESS_TOKEN_TTL_SECONDS` / `REFRESH_TOKEN_TTL_SECONDS` | `3600` / `2592000` | Token lifetimes. |
 | `ALLOW_INSECURE_HTTP` | unset | `1` turns off the HTTPS-only gate. Use it only for local development. |
 | `GARMIN_API_KEY` | unset | Used only in stdio mode. |
 
 Routes: `/` (product page and API-key guide), `/mcp` (MCP Streamable HTTP),
-`/info` (JSON), `/healthz`, `/.well-known/oauth-protected-resource/mcp`,
-`/.well-known/oauth-authorization-server`, `/register`, `/authorize`, `/token`,
-and `/oauth/consent`.
+`/info` (JSON) and `/healthz`.
 
 ## Project layout
 
@@ -215,11 +191,11 @@ and `/oauth/consent`.
 src/garmin_mcp/
   config.py        pydantic-settings: every environment variable in one place
   server.py        FastMCP instance, ASGI App, stdio main()
-  contracts/       pydantic models: tool inputs/outputs and sealed OAuth claims
+  contracts/       pydantic models: tool inputs/outputs and error bodies
   sdk/             Garmin Personal API client, key→token exchange, errors
   tools/           MCP tools (profile, activities, wellness, stats) + sanitising
-  auth/            OAuth 2.1 provider, consent page, sealing (AES-GCM), middleware
-  web/             landing page + consent templates
+  auth/            API-key extraction, key gate (401/502) and HTTPS-only middleware
+  web/             landing page template
 ```
 
 ## Development

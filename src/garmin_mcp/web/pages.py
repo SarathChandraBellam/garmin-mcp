@@ -29,12 +29,16 @@ def _tool_rows() -> str:
     return "\n".join(rows)
 
 
-async def index(_: Request) -> HTMLResponse:
-    base = get_settings().base_url
+def _base_url(request: Request) -> str:
+    configured = get_settings().public_base_url
+    return (configured or str(request.base_url)).rstrip("/")
+
+
+async def index(request: Request) -> HTMLResponse:
+    base = _base_url(request)
     body = render(
         "index.html",
         version=html.escape(__version__),
-        base_url=html.escape(base),
         mcp_url=html.escape(base + MCP_PATH),
         tools_rows=_tool_rows(),
     )
@@ -43,19 +47,14 @@ async def index(_: Request) -> HTMLResponse:
 
 
 async def info(_: Request) -> JSONResponse:
-    base = get_settings().base_url
     return JSONResponse(
         {
             "name": "garmin-mcp",
             "version": __version__,
             "transport": "streamable-http (stateless)",
             "endpoint": MCP_PATH,
-            "auth": {
-                "type": "oauth2.1",
-                "protected_resource_metadata": f"{base}/.well-known/oauth-protected-resource{MCP_PATH}",
-                "authorization_server_metadata": f"{base}/.well-known/oauth-authorization-server",
-                "alternative": "X-Garmin-Api-Key header or Authorization: Bearer <Garmin key>",
-            },
+            "auth": "send your own Garmin Personal API key in header X-Garmin-Api-Key "
+            "(or Authorization: Bearer <key>)",
             "stores_data": False,
         }
     )

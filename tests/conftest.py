@@ -10,8 +10,6 @@ import time
 # Deterministic settings before any garmin_mcp import.
 os.environ.setdefault("ALLOW_INSECURE_HTTP", "1")
 os.environ.setdefault("DEFAULT_TIMEZONE", "UTC")
-os.environ.setdefault("GARMIN_MCP_SECRET", "test-secret-not-for-production")
-os.environ.setdefault("PUBLIC_BASE_URL", "http://localhost")
 
 import pytest  # noqa: E402
 
