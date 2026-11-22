@@ -52,6 +52,7 @@ src/garmin_mcp/
   web/           landing page (`/`), `/info`, `/healthz`; tool table rendered from ALL_TOOLS
 tests/           pytest + respx; fixtures.py holds synthetic Garmin payloads
 scripts/e2e.py   opt-in live end-to-end check (needs a real key; never in CI)
+scripts/release.py  release rules: classify commits, pick the bump, roll the CHANGELOG
 ```
 
 ## Skills
@@ -116,10 +117,17 @@ Semantic versioning, `X.Y.Z` = MAJOR.MINOR.PATCH, tagged `vX.Y.Z`:
 - **Patch (Z)**: backward-compatible fixes, privacy/security fixes, runtime
   dependency bumps.
 
-Use Conventional Commit prefixes in commit and PR titles (`feat:`, `fix:`, `docs:`,
-`chore:`, `ci:`, `test:`, `refactor:`; add `!` for breaking, e.g. `feat!:`) so the
-release impact is obvious. Never bump the version in a feature PR; releases are
-separate `chore(release): vX.Y.Z` PRs made with the `release` skill.
+**PR titles must be Conventional Commits** (`feat:`, `fix:`, `deps:`, `docs:`,
+`chore:`, `ci:`, `test:`, `refactor:`; add `!` for breaking, e.g. `feat!:`). PRs are
+squash-merged, so the title is what the release pipeline reads; CI
+(`pr-title.yml`) rejects other titles.
+
+Releases are automated by `.github/workflows/release.yml` using
+`scripts/release.py`: on each push to `main` it opens or updates a
+`chore(release): vX.Y.Z` PR when code changes are pending, and merging that PR tags
+the version and publishes the GitHub release. Never bump the version in a feature
+PR. Keep `## [Unreleased]` in `CHANGELOG.md` accurate — it becomes the release
+notes. See the `release` skill for details and the manual fallback.
 
 ## Roadmap context
 

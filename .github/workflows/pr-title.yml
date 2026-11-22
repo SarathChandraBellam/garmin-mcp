@@ -1,0 +1,20 @@
+name: PR title
+
+# PRs are squash-merged, so the PR title becomes the commit on main that the
+# release workflow reads. It must be a Conventional Commit (feat:, fix:, docs:, ...).
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  conventional-title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check PR title
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: python3 scripts/release.py check-title "$PR_TITLE"

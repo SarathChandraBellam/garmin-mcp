@@ -9,7 +9,30 @@ Versions follow [Semantic Versioning](https://semver.org): **`X.Y.Z`** =
 **MAJOR.MINOR.PATCH**. Tags are `vX.Y.Z`. The changelog follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## 1. Find what changed since the last release
+## How releases happen
+
+Releases are automated; the rules live in code in `scripts/release.py` (tested in
+`tests/test_release.py`):
+
+| Workflow | When | What it does |
+|---|---|---|
+| `.github/workflows/pr-title.yml` | Every PR | Fails unless the title is a Conventional Commit (PRs are squash-merged, so the title becomes the commit on `main`) |
+| `.github/workflows/release.yml` → `plan` | Every push to `main` | Classifies commits since the current version and picks the bump |
+| `release.yml` → `prepare` | Code changes are pending | Opens or updates the **release PR** (`release/next`, titled `chore(release): vX.Y.Z`) with the version bump in all three files and the rolled CHANGELOG, after running the checks |
+| `release.yml` → `publish` | The version in `pyproject.toml` has no tag (a release PR just merged) | Builds, tags `vX.Y.Z`, creates the GitHub release with that CHANGELOG section and the wheel/sdist |
+
+So an agent's job is usually: give PRs correct Conventional Commit titles, keep
+`## [Unreleased]` in `CHANGELOG.md` accurate, and review the release PR. Use the
+manual steps below only if the user asks or the workflow can't run.
+
+To see what the pipeline would do right now:
+
+```bash
+git fetch origin main --tags && git checkout origin/main
+python3 scripts/release.py plan
+```
+
+## 1. Find what changed since the last release (manual)
 
 ```bash
 git fetch origin main --tags
@@ -65,43 +88,37 @@ Rules of thumb:
 State the decision before changing anything, e.g. *"Releasable: yes. Bump: minor
 (new tool `get_respiration`). 0.2.0 → 0.3.0."* and wait for the user to confirm.
 
-## 4. Prepare the release PR
+## 4. Prepare the release PR (manual; normally `release.yml` → `prepare`)
+
+Before anything, make sure every user-facing change is listed under
+`## [Unreleased]` in `CHANGELOG.md` (`Added` / `Changed` / `Deprecated` / `Removed` /
+`Fixed` / `Security`; breaking changes start with **BREAKING:** and say what users
+must do). Do this in a normal PR to `main`, never on the `release/next` branch:
+the workflow regenerates that branch on every push.
 
 On a branch from `origin/main`:
 
-1. Set the new version in **all three** places:
-   - `pyproject.toml` → `[project] version`
-   - `src/garmin_mcp/__init__.py` → `__version__`
-   - `uv.lock` → run `uv lock` (updates the `garmin-mcp` entry)
-2. `CHANGELOG.md`:
-   - rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` (today's date) and add a
-     fresh empty `## [Unreleased]` above it;
-   - make sure every user-facing change is listed under `Added` / `Changed` /
-     `Deprecated` / `Removed` / `Fixed` / `Security`; breaking changes start with
-     **BREAKING:** and say what users must do;
-   - update the link references at the bottom:
-     ```
-     [Unreleased]: https://github.com/SarathChandraBellam/garmin-mcp/compare/vX.Y.Z...HEAD
-     [X.Y.Z]: https://github.com/SarathChandraBellam/garmin-mcp/compare/vPREV...vX.Y.Z
-     ```
+1. `python3 scripts/release.py prepare X.Y.Z` — sets the version in
+   `pyproject.toml` and `src/garmin_mcp/__init__.py`, moves `[Unreleased]` under
+   `## [X.Y.Z] - <today>` and updates the compare links. If `[Unreleased]` was
+   empty it fills it from the commit titles.
+2. `uv lock` — updates the `garmin-mcp` version in `uv.lock`.
 3. For a major bump, add upgrade notes to `README.md` if config or client setup changed.
 4. Run the `run-checks` skill (black, ruff, mypy, pytest) and confirm
    `grep -rn "X.Y.Z" pyproject.toml src/garmin_mcp/__init__.py uv.lock` shows all three.
 5. Commit as `chore(release): vX.Y.Z` and open a PR titled `Release vX.Y.Z`.
    The PR changes only version numbers and the changelog.
 
-## 5. Tag and publish (after the release PR is merged)
+## 5. Tag and publish (manual; normally `release.yml` → `publish`)
+
+After the release PR is merged, the workflow does this by itself. By hand:
 
 ```bash
 git fetch origin main
 SHA=$(git rev-parse origin/main)          # the merged release commit
-git tag -a vX.Y.Z "$SHA" -m "vX.Y.Z"
-git push origin vX.Y.Z
+python3 scripts/release.py notes X.Y.Z > notes.md
+uv build
+gh release create vX.Y.Z dist/* --target "$SHA" --title vX.Y.Z --notes-file notes.md
 ```
-
-Then create a GitHub release for tag `vX.Y.Z` titled `vX.Y.Z`, with that
-version's CHANGELOG section as the notes (`gh release create vX.Y.Z --title vX.Y.Z
---notes-file <section>` or the GitHub UI). Mark it as a pre-release while the
-version is `0.x` only if the user asks.
 
 Never move or delete a published tag; fix mistakes with a new patch release.

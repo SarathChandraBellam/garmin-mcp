@@ -1,7 +1,7 @@
 [project]
 name = "garmin-mcp"
 version = "0.2.0"
-description = "Stateless, bring-your-own-key MCP server for Garmin Connect (Personal API, FastMCP 2.x)"
+description = "Stateless, bring-your-own-key MCP server for Garmin Connect (Personal API, FastMCP)"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Sarath Chandra Bellam" }]
@@ -74,7 +74,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["garmin_mcp", "tests"]
+known-first-party = ["garmin_mcp", "tests", "scripts"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/test_server.py" = ["E402"]

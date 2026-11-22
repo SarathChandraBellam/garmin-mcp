@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Upgraded FastMCP from 2.14.7 to 4.1.8. The MCP wire format, tool names and
+  tool annotations are unchanged.
+- Raised the minimum `httpx` version to 0.28.1.
+
 ### Added
 
 - `AGENTS.md` with build/test commands, layout and hard rules for AI coding agents.
@@ -16,8 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `.claude/settings.json` pre-approves the uv check commands, blocks reading
   `.env`/`.secrets/`, and installs dependencies at the start of Claude Code on the
   web sessions.
-- Release guidance: semantic versioning rules and a release-impact section in the
-  pull request template.
+- Release guidance and automation: semantic versioning rules,
+  `scripts/release.py`, a release workflow that opens release PRs and publishes
+  tagged GitHub releases, a Conventional Commit check on PR titles, and a
+  release-impact section in the pull request template.
 
 ## [0.2.0] - 2026-11-22
 
