@@ -44,8 +44,8 @@ collected that way. CI does not run this.
 1. Open an issue first for larger changes (new tools, auth model, data source).
 2. Keep PRs focused; include tests for behaviour changes.
 3. Follow the existing style (type hints, no secret logging).
-4. Update `CHANGELOG.md` under `[Unreleased]` and docs if the public interface
-   changes.
+4. Update the docs if the public interface changes. Don't edit `CHANGELOG.md`:
+   release-please generates it from PR titles.
 5. Use a [Conventional Commits](https://www.conventionalcommits.org) title
    (`feat:`, `fix:`, `docs:`, … with `!` for breaking changes) and fill in the pull
    request template, including **Release impact**. Don't bump the version in a

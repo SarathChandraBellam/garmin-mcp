@@ -74,7 +74,7 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["garmin_mcp", "tests", "scripts"]
+known-first-party = ["garmin_mcp", "tests"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/test_server.py" = ["E402"]

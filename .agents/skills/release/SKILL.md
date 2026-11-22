@@ -1,124 +1,99 @@
 ---
 name: release
-description: Decide whether merged changes need a garmin-mcp release, pick the semantic version bump (major X, minor Y, patch Z), and cut the release (version bump, CHANGELOG, tag, GitHub release). Use when asked to "release", "cut a version", "bump the version", "is this releasable?", or after merging a PR to main.
+description: How garmin-mcp releases work (release-please, semantic versioning X.Y.Z) — pick the right Conventional Commit PR title so the bump is correct, check what the next release will be, review or fix the release PR, force a version, or troubleshoot a missing release. Use when asked to "release", "cut a version", "bump the version", "is this releasable?", or about tags and GitHub releases.
 ---
 
 # Release garmin-mcp
 
 Versions follow [Semantic Versioning](https://semver.org): **`X.Y.Z`** =
-**MAJOR.MINOR.PATCH**. Tags are `vX.Y.Z`. The changelog follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+**MAJOR.MINOR.PATCH**, tagged `vX.Y.Z`. Releases are fully automated by
+[release-please](https://github.com/googleapis/release-please). Never bump the
+version or edit `CHANGELOG.md` by hand.
 
-## How releases happen
+## How it works
 
-Releases are automated; the rules live in code in `scripts/release.py` (tested in
-`tests/test_release.py`):
+| Piece | Role |
+|---|---|
+| `.github/workflows/pr-title.yml` | Fails a PR unless its title is a Conventional Commit (`amannn/action-semantic-pull-request`). PRs are squash-merged, so the title becomes the commit release-please reads. |
+| `.github/workflows/release-please.yml` | On every push to `main`, opens or updates the release PR (`chore: release X.Y.Z`). When that PR is merged it tags `vX.Y.Z`, creates the GitHub release, and attaches the wheel and sdist. |
+| `release-please-config.json` | Python release type; tags without a component (`v0.2.1`); which commit types appear in the changelog; ignored paths; `uv.lock` version update. |
+| `.release-please-manifest.json` | The current released version. release-please updates it; don't edit it. |
 
-| Workflow | When | What it does |
+The release PR bumps the version in `pyproject.toml`,
+`src/garmin_mcp/__init__.py` and `uv.lock`, and adds a section to `CHANGELOG.md`.
+
+## Which changes release, and the bump
+
+The **PR title type** decides; the highest bump among merged PRs wins:
+
+| PR title | Bump | Changelog section |
 |---|---|---|
-| `.github/workflows/pr-title.yml` | Every PR | Fails unless the title is a Conventional Commit (PRs are squash-merged, so the title becomes the commit on `main`) |
-| `.github/workflows/release.yml` → `plan` | Every push to `main` | Classifies commits since the current version and picks the bump |
-| `release.yml` → `prepare` | Code changes are pending | Opens or updates the **release PR** (`release/next`, titled `chore(release): vX.Y.Z`) with the version bump in all three files and the rolled CHANGELOG, after running the checks |
-| `release.yml` → `publish` | The version in `pyproject.toml` has no tag (a release PR just merged) | Builds, tags `vX.Y.Z`, creates the GitHub release with that CHANGELOG section and the wheel/sdist |
+| `feat!: …`, `fix!: …`, or a `BREAKING CHANGE:` footer | **Major** `X+1.0.0` | (marked breaking) |
+| `feat: …` | **Minor** `X.Y+1.0` | Features |
+| `fix: …`, `perf: …`, `deps: …`, `revert: …` | **Patch** `X.Y.Z+1` | Bug Fixes / Performance / Dependencies / Reverts |
+| `docs:`, `chore:`, `ci:`, `test:`, `style:`, `refactor:`, `build:` | **No release** | hidden |
 
-So an agent's job is usually: give PRs correct Conventional Commit titles, keep
-`## [Unreleased]` in `CHANGELOG.md` accurate, and review the release PR. Use the
-manual steps below only if the user asks or the workflow can't run.
+A breaking change goes to the next major even while the version is `0.x`
+(0.4.2 → 1.0.0).
 
-To see what the pipeline would do right now:
+Commits that only touch `.agents/`, `.claude/`, `.github/`, `tests/` or `scripts/`
+are ignored whatever their type (`exclude-paths`). That option only matches
+directories, so root files like `README.md` or `AGENTS.md` rely on the title: use
+`docs:` for doc-only PRs.
 
-```bash
-git fetch origin main --tags && git checkout origin/main
-python3 scripts/release.py plan
-```
+### Choosing the title (what agents must get right)
 
-## 1. Find what changed since the last release (manual)
+Classify by what **users of the server or package** see:
+
+- **Breaking (`!`)**: removing or renaming a tool or tool parameter; making an
+  optional parameter required; changing a tool's output shape or field names;
+  changing auth headers, error codes (`missing_garmin_api_key`,
+  `invalid_garmin_api_key`, `https_required`) or status codes; renaming/removing an
+  env var; changing `/mcp` or other routes; dropping a Python version; removing the
+  `garmin-mcp` CLI or `garmin_mcp.asgi:app`. Explain the migration in the PR body
+  after `BREAKING CHANGE:`.
+- **`feat`**: a new tool, optional parameter, `query_stats` metric, optional env var,
+  output field or route; supporting a new Python version.
+- **`fix`**: wrong Garmin path, better error messages, stripping an extra PII field
+  (a privacy fix, not breaking), landing-page fixes.
+- **`deps`**: runtime dependency bumps (Dependabot uses this). Dev-tool bumps are
+  `chore:`; GitHub Actions bumps are `ci:`.
+- **`docs` / `test` / `ci` / `chore` / `refactor`**: anything with no user-visible
+  change.
+
+When unsure between two levels, choose the higher one and say why. The title's
+description becomes the changelog line, so write it for users: `feat: add
+get_respiration tool`, not `feat: wellness.py changes`.
+
+## Checking what the next release will be
+
+Open the release PR on GitHub (title `chore: release X.Y.Z`); its body is the
+changelog. If there is none, no releasable PR has merged since the last release.
+To preview, list merged commit titles since the last tag:
 
 ```bash
 git fetch origin main --tags
-LAST=$(git describe --tags --abbrev=0 origin/main)   # e.g. v0.2.0
-git log --oneline "$LAST"..origin/main
-git diff --stat "$LAST"..origin/main
+git log --format='%h %s' "$(git describe --tags --abbrev=0 origin/main)"..origin/main
 ```
 
-Also read the `## [Unreleased]` section of `CHANGELOG.md`. If the latest version
-in `CHANGELOG.md` / `pyproject.toml` has no matching tag, that version was
-never tagged: tag it first (step 5) before deciding on a new one.
+## Fixing things
 
-## 2. Decide whether a release is needed
-
-A release is needed only when something a **user of the package or server** gets
-changes. Classify every changed path:
-
-| Releasable (code) | Not releasable (non-code) |
-|---|---|
-| `src/garmin_mcp/**` (incl. `web/templates/`) | `*.md` docs: README, CONTRIBUTING, CHANGELOG, SECURITY, PLAN-*, AGENTS/CLAUDE |
-| `pyproject.toml` dependencies, `requires-python`, scripts/entry points | `.agents/`, `.claude/` (agent skills, settings, hooks) |
-| `uv.lock` **runtime** dependency changes | `tests/**`, `scripts/**` |
-| | `.github/**` (CI, templates, Dependabot), `.pre-commit-config.yaml`, `.editorconfig`, `.gitignore` |
-| | `uv.lock` / `pyproject.toml` changes to **dev** dependencies only |
-
-**If every change is non-code, do not release.** Say so and stop. Non-code
-changes ship with the next code release.
-
-Commit type prefixes ([Conventional Commits](https://www.conventionalcommits.org))
-are a hint, but the diff decides: `docs:`, `chore:`, `ci:`, `test:`, `style:`,
-`build:` (dev tooling) and `refactor:` with no behaviour change are not releasable.
-
-## 3. Pick the bump
-
-Take the **highest** level any releasable change needs:
-
-| Bump | When | Examples in this project |
-|---|---|---|
-| **Major** `X` → `X+1.0.0` | A breaking change: an existing client, config or deployment stops working or behaves differently without them changing anything (`feat!:` / `fix!:` / `BREAKING CHANGE:`) | Removing or renaming a tool or a tool parameter; making an optional parameter required; changing a tool's output shape or field names; changing the auth headers, error codes (`missing_garmin_api_key`, `invalid_garmin_api_key`, `https_required`) or status codes; renaming/removing an env var; changing the `/mcp` path or other routes; dropping a Python version; removing the `garmin-mcp` CLI or `garmin_mcp.asgi:app` |
-| **Minor** `Y` → `X.Y+1.0` | New backward-compatible functionality (`feat:`) | A new tool; a new optional parameter; a new `query_stats` metric; a new optional env var; new fields added to output; a new route; supporting a new Python version |
-| **Patch** `Z` → `X.Y.Z+1` | Backward-compatible fixes with no new features (`fix:`, `perf:`, security fixes, runtime dependency bumps) | Fixing a wrong Garmin path; better error messages; stripping an extra PII field; a runtime dependency security bump; landing-page copy or style fixes |
-
-Rules of thumb:
-
-- When unsure between two levels, choose the higher one and say why.
-- A runtime dependency bump is a patch unless it changes behaviour users see
-  (then minor), or breaks them (then major). A `fastmcp` upgrade that changes
-  the MCP protocol version or transport behaviour is at least minor.
-- Removing PII from output is a **patch** (it's a privacy fix), even though the
-  output shape changes.
-- Major resets minor and patch; minor resets patch: `1.4.2` → `2.0.0` / `1.5.0` / `1.4.3`.
-
-State the decision before changing anything, e.g. *"Releasable: yes. Bump: minor
-(new tool `get_respiration`). 0.2.0 → 0.3.0."* and wait for the user to confirm.
-
-## 4. Prepare the release PR (manual; normally `release.yml` → `prepare`)
-
-Before anything, make sure every user-facing change is listed under
-`## [Unreleased]` in `CHANGELOG.md` (`Added` / `Changed` / `Deprecated` / `Removed` /
-`Fixed` / `Security`; breaking changes start with **BREAKING:** and say what users
-must do). Do this in a normal PR to `main`, never on the `release/next` branch:
-the workflow regenerates that branch on every push.
-
-On a branch from `origin/main`:
-
-1. `python3 scripts/release.py prepare X.Y.Z` — sets the version in
-   `pyproject.toml` and `src/garmin_mcp/__init__.py`, moves `[Unreleased]` under
-   `## [X.Y.Z] - <today>` and updates the compare links. If `[Unreleased]` was
-   empty it fills it from the commit titles.
-2. `uv lock` — updates the `garmin-mcp` version in `uv.lock`.
-3. For a major bump, add upgrade notes to `README.md` if config or client setup changed.
-4. Run the `run-checks` skill (black, ruff, mypy, pytest) and confirm
-   `grep -rn "X.Y.Z" pyproject.toml src/garmin_mcp/__init__.py uv.lock` shows all three.
-5. Commit as `chore(release): vX.Y.Z` and open a PR titled `Release vX.Y.Z`.
-   The PR changes only version numbers and the changelog.
-
-## 5. Tag and publish (manual; normally `release.yml` → `publish`)
-
-After the release PR is merged, the workflow does this by itself. By hand:
-
-```bash
-git fetch origin main
-SHA=$(git rev-parse origin/main)          # the merged release commit
-python3 scripts/release.py notes X.Y.Z > notes.md
-uv build
-gh release create vX.Y.Z dist/* --target "$SHA" --title vX.Y.Z --notes-file notes.md
-```
+- **A merged PR had the wrong title**: edit that merged PR's description and add
+  ```
+  BEGIN_COMMIT_OVERRIDE
+  feat: add get_respiration tool
+  END_COMMIT_OVERRIDE
+  ```
+  then re-run the Release Please workflow (`workflow_dispatch`). One PR can list
+  several commit lines.
+- **Force a specific version**: merge a commit (e.g. `chore: release 1.0.0`) whose
+  body has a `Release-As: 1.0.0` footer.
+- **Wrong changelog wording**: use the commit override above; don't edit the
+  release PR branch, release-please regenerates it.
+- **No CI on the release PR**: PRs created with the default `GITHUB_TOKEN` don't
+  trigger workflows. Add a `RELEASE_TOKEN` secret (fine-grained PAT or GitHub App
+  token with contents and pull-requests write) — the workflow uses it when present.
+- **Release PR not created at all**: check the workflow run, and that "Allow GitHub
+  Actions to create and approve pull requests" is enabled in the repo settings.
 
 Never move or delete a published tag; fix mistakes with a new patch release.

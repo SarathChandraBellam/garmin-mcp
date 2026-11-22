@@ -39,5 +39,6 @@ pydantic-settings, starlette via fastmcp) before adding a package.
    (`ALLOW_INSECURE_HTTP=1 uv run uvicorn garmin_mcp.asgi:app --port 18790`) and
    confirm `GET /healthz` returns `{"ok": true}` and `POST /mcp` without a key
    returns 401.
-4. Add a `### Changed` entry under `## [Unreleased]` in `CHANGELOG.md` for runtime
-   dependency changes. Commit `pyproject.toml` and `uv.lock` together.
+4. Commit `pyproject.toml` and `uv.lock` together. Title the PR `deps: …` for a
+   runtime dependency (patch release), `chore: …` for a dev tool, `ci: …` for an
+   Action (no release). Don't edit `CHANGELOG.md`; release-please writes it.

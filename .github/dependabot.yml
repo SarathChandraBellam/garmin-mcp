@@ -1,8 +1,8 @@
 version: 2
 updates:
-  # Titles follow Conventional Commits so the release workflow can classify them:
-  # runtime deps -> "fix(deps): ..." (patch release), dev deps -> "chore(deps-dev): ..."
-  # (no release), Actions -> "ci(deps): ..." (no release).
+  # Conventional Commit titles for release-please:
+  # runtime deps -> "deps: ..." (patch release, "Dependencies" section),
+  # dev deps -> "chore: ..." and Actions -> "ci: ..." (no release).
   - package-ecosystem: uv
     directory: /
     schedule:
@@ -10,9 +10,8 @@ updates:
     labels: [dependencies]
     open-pull-requests-limit: 5
     commit-message:
-      prefix: fix
+      prefix: deps
       prefix-development: chore
-      include: scope
   - package-ecosystem: github-actions
     directory: /
     schedule:
@@ -20,4 +19,3 @@ updates:
     labels: [dependencies]
     commit-message:
       prefix: ci
-      include: scope
