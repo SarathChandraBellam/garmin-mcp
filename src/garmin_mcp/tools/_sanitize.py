@@ -30,6 +30,8 @@ PII_FIELDS = frozenset(
 # (userProfilePK / userProfilePk, activityUUID / activityUuid).
 _PII_LOWER = frozenset(k.lower() for k in PII_FIELDS)
 MAX_SAMPLES = 50
+# Per-sample series that are always collapsed by strip_samples, whatever their length.
+SAMPLE_KEYS = frozenset({"hrvReadings"})
 
 
 def no_pii(x: Any) -> Any:
@@ -45,11 +47,19 @@ def _omitted(n: int, flag: str) -> str:
 
 
 def strip_samples(obj: Any, keep: bool = False, flag: str = "include_samples") -> Any:
-    """Replace lists longer than ``MAX_SAMPLES`` with a placeholder, at any nesting depth."""
+    """Replace lists longer than ``MAX_SAMPLES`` (and any ``SAMPLE_KEYS`` list) with a
+    placeholder, at any nesting depth."""
     if keep:
         return obj
     if isinstance(obj, dict):
-        return {k: strip_samples(v, flag=flag) for k, v in obj.items()}
+        return {
+            k: (
+                _omitted(len(v), flag)
+                if k in SAMPLE_KEYS and isinstance(v, list)
+                else strip_samples(v, flag=flag)
+            )
+            for k, v in obj.items()
+        }
     if isinstance(obj, list):
         if len(obj) > MAX_SAMPLES:
             return _omitted(len(obj), flag)

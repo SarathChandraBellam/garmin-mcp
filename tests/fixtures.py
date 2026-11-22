@@ -143,3 +143,56 @@ WELLNESS_ACTIVITY = {
     "activityType": "walking",
     "duration": 900,
 }
+
+# A daily summary shaped like the v2 endpoint: small scalar summaries plus heavy nested
+# descriptors and event lists. All values are made up.
+DAILY_SUMMARY_FULL = {
+    "calendarDate": "2026-01-15",
+    "includesWellnessData": True,
+    "includesActivityData": False,
+    "calories": {"total": 2100, "active": 400, "bmr": 1700},
+    "heartRate": {"minValue": 48, "maxValue": 160, "restingValue": 52},
+    "movement": {
+        "steps": {"value": 10234, "goal": 8000, "distanceInMeters": 7800},
+        "floors": {"ascended": 10, "descended": 9},
+    },
+    "intensityMinutes": {"moderate": 20, "vigorous": 5, "goal": 150},
+    "stress": {
+        "avgLevel": 30,
+        "maxLevel": 88,
+        "restProportion": 0.3,
+        "lowProportion": 0.1,
+        "mediumProportion": 0.08,
+        "highProportion": 0.02,
+        "uncategorizedProportion": 0.42,
+        "uncategorizedDurationInMillis": 36_288_000,
+        "qualifier": "BALANCED",
+        "levels": [{"start": f"2026-01-15T{h:02d}:00:00.0", "level": h} for h in range(24)],
+    },
+    "bodyBattery": {
+        "charged": 40,
+        "drained": 55,
+        "highest": 90,
+        "lowest": 30,
+        "mostRecent": 45,
+        "events": [
+            {"eventType": "SLEEP", "durationInMillis": 25_000_000, "feedbackType": f"T{i}"}
+            for i in range(8)
+        ],
+        "dynamicFeedbackEvent": {
+            "eventTimestampGmt": "2026-01-15T10:00:00.0",
+            "bodyBatteryLevel": "MODERATE",
+            "feedbackShortType": "DAY_RECOVERING_AND_INACTIVE",
+            "feedbackLongType": "DAY_RECOVERING_AND_INACTIVE_LONG_TEXT",
+        },
+    },
+    "wellnessChronology": {
+        "startTimestampGmt": "2026-01-14T18:30:00.0",
+        "startTimestampLocal": "2026-01-15T00:00:00.0",
+        "endTimestampGmt": "2026-01-15T18:30:00.0",
+        "endTimestampLocal": "2026-01-16T00:00:00.0",
+        "totalDurationInMillis": 86_400_000,
+        "segments": [{"type": "WAKE", "minutes": m} for m in range(20)],
+    },
+    "respiration": {"avgValue": 14, "samples": [[i, 14] for i in range(30)]},
+}

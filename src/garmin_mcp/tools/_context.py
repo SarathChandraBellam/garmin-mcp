@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime as dt
 from collections.abc import Callable
 from typing import Any, TypeVar
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import get_http_headers
@@ -42,8 +42,38 @@ def call(fn: Callable[..., T], *args: Any, **kwargs: Any) -> T:
         raise ToolError(str(e)) from None
 
 
-def today() -> str:
-    return dt.datetime.now(ZoneInfo(get_settings().default_timezone)).date().isoformat()
+TZ_HEADER = "x-timezone"
+
+
+def _utcnow() -> dt.datetime:
+    """The current instant (patched in tests to freeze the clock)."""
+    return dt.datetime.now(dt.timezone.utc)
+
+
+def _zone(name: str, source_name: str) -> ZoneInfo:
+    try:
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError):
+        shown = name if len(name) <= 64 else name[:61] + "..."
+        raise ToolError(
+            f"{source_name}: unknown IANA time zone {shown!r} (use a name like Asia/Kolkata "
+            "or America/New_York)"
+        ) from None
+
+
+def caller_zone(tz: str | None = None) -> ZoneInfo:
+    """Time zone for "today": the ``tz`` argument, else the X-Timezone header, else
+    DEFAULT_TIMEZONE."""
+    if tz and tz.strip():
+        return _zone(tz.strip(), "tz")
+    header = {k.lower(): v for k, v in get_http_headers(include_all=True).items()}
+    if header.get(TZ_HEADER, "").strip():
+        return _zone(header[TZ_HEADER].strip(), "X-Timezone header")
+    return _zone(get_settings().default_timezone, "DEFAULT_TIMEZONE")
+
+
+def today(tz: str | None = None) -> str:
+    return _utcnow().astimezone(caller_zone(tz)).date().isoformat()
 
 
 def shift(d: str, days: int) -> str:

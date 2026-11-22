@@ -16,18 +16,21 @@ from starlette.types import Receive, Scope, Send
 from .auth import GarminKeyGate, HttpsOnlyMiddleware
 from .config import Settings, get_settings
 from .tools import register_all
+from .tools._errors import CleanValidationErrors
 from .web.pages import MCP_PATH
 from .web.pages import routes as page_routes
 
 INSTRUCTIONS = (
     "Live, read-only access to the caller's own Garmin Connect data via the official Garmin "
     "Personal API. Nothing is cached or stored server-side; each call fetches from Garmin. "
-    "Dates are YYYY-MM-DD in the user's local calendar."
+    "Dates are YYYY-MM-DD in the user's local calendar; pass tz (IANA name) or the "
+    "X-Timezone header so 'today' matches the user's day."
 )
 
 
 def create_mcp() -> FastMCP:
     mcp = FastMCP(name="garmin-mcp", instructions=INSTRUCTIONS)
+    mcp.add_middleware(CleanValidationErrors())
     register_all(mcp)
     for route in page_routes:
         mcp.custom_route(route.path, methods=sorted(route.methods or ["GET"]))(route.endpoint)

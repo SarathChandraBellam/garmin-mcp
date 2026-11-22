@@ -29,6 +29,17 @@ OptDate = Annotated[
     Field(default=None, pattern=DATE_PATTERN, description="YYYY-MM-DD; default today"),
     AfterValidator(_real_date),
 ]
+Tz = Annotated[
+    str | None,
+    Field(
+        default=None,
+        max_length=64,
+        description=(
+            "IANA time zone used for 'today' (default dates, partial flag), e.g. Asia/Kolkata; "
+            "default: X-Timezone header, then the server's DEFAULT_TIMEZONE"
+        ),
+    ),
+]
 
 Metric = Literal[
     "steps",

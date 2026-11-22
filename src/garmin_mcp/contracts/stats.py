@@ -6,7 +6,10 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-SeriesStatus = Literal["ok", "empty"]
+# ok: records found. empty: none in the window (the metric is known to work for this
+# account, or the endpoint distinguishes "nothing logged"). unknown: none, and Garmin gives
+# the same empty answer whether nothing was logged or the metric is unsupported.
+SeriesStatus = Literal["ok", "empty", "unknown"]
 
 
 class StatsResult(BaseModel):

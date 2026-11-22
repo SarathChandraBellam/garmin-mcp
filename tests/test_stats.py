@@ -227,19 +227,19 @@ def test_every_metric_uses_the_same_gap_policy(client: TestClient, metric: str):
 
 
 @respx.mock
-def test_empty_series_is_structured_not_blank(client: TestClient):
+@pytest.mark.parametrize("metric, status", [("steps", "empty"), ("hydration", "unknown")])
+def test_empty_series_is_structured_not_blank(client: TestClient, metric: str, status: str):
     _token()
     respx.get(url__startswith=PERSONAL_BASE).mock(return_value=httpx.Response(200, json=[]))
     err, text = _call(
         client,
         "query_stats",
-        {"metric": "hydration", "start_date": "2026-01-01", "end_date": "2026-01-07"},
+        {"metric": metric, "start_date": "2026-01-01", "end_date": "2026-01-07"},
     )
     assert not err and text  # never an empty MCP content array
     body = json.loads(text)
-    assert body["status"] == "empty"
+    assert body["status"] == status
     assert body["days_with_data"] == 0
-    assert any("not that the metric is unsupported" in n for n in body["notes"])
 
 
 @respx.mock

@@ -76,7 +76,8 @@ API-key guide and copy-ready snippets.
 X-Garmin-Api-Key: <your key>
 ```
 
-(`Authorization: Bearer <your key>` is also accepted.)
+(`Authorization: Bearer <your key>` is also accepted.) Optionally add
+`X-Timezone: <IANA zone>` (for example `Asia/Kolkata`) so "today" matches your day.
 
 **Cursor** (`~/.cursor/mcp.json`):
 
@@ -152,16 +153,24 @@ use `"command": "uv", "args": ["--directory", "/path/to/garmin-mcp", "run", "gar
 | `get_daily_summary` | Steps, calories, heart rate, stress, Body Battery, intensity minutes, SpO2, respiration; `partial: true` while the day is in progress |
 | `get_sleep` | Sleep stages, durations, and timing for the night ending on the date (wake-up date) |
 | `get_heart_rate` | Resting / min / max / 7-day average (samples opt-in) |
-| `get_hrv` | Overnight HRV summary |
+| `get_hrv` | Overnight HRV summary (`hrvReadings` opt-in with `include_samples`) |
 | `get_body_composition` | Weight and body-composition entries in a date range (grams; see `units`) |
 | `get_spo2` | Pulse-ox and acclimation for a day |
 | `get_fitness_age` | Fitness age and components |
 | `get_heart_rate_zones` | Configured heart-rate zones |
 | `get_training_readiness` | The Personal API has no Training Readiness endpoint; this returns its main inputs (HRV, sleep, Body Battery). Long sample arrays opt-in with `include_samples` |
-| `query_stats` | Daily series for a whitelisted metric: `steps`, `stress`, `body_battery`, `sleep`, `hrv`, `weight`, `vo2max`, `hydration`, `daily_summaries`, `wellness_activities` (max 366 inclusive days; 31 for `daily_summaries`). One entry per requested date; compact unless `raw` |
+| `query_stats` | Daily series for a whitelisted metric: `steps`, `stress`, `body_battery`, `sleep`, `hrv`, `weight`, `vo2max`, `hydration`, `daily_summaries`, `wellness_activities` (max 366 inclusive days; 31 for `daily_summaries`). One entry per requested date; compact unless `raw`; optional `include_uncategorized` (stress) and `include_nearest` (vo2max, weight, hrv) |
 
-Dates are `YYYY-MM-DD` in the user's local calendar (`DEFAULT_TIMEZONE`, default
-`UTC`). Location names, coordinates, and owner/profile/device identifiers are
+Dates are `YYYY-MM-DD` in the user's local calendar. Every tool with a date default
+takes an optional `tz` (IANA name such as `Asia/Kolkata`) that decides what "today"
+means for default dates and the `partial` flag. Without it the server uses the
+`X-Timezone` request header, then `DEFAULT_TIMEZONE` (default `UTC`). An unknown name
+is an error (`tz: unknown IANA time zone ...`), never a silent fallback.
+
+Invalid arguments come back as one `field: problem` line each, for example
+`start_date: '2026-13-40' is not a valid calendar date (YYYY-MM-DD)`.
+
+Location names, coordinates, and owner/profile/device identifiers are
 removed from activity output.
 
 ### `query_stats` contract
@@ -194,17 +203,31 @@ Every response is an object, never an empty result:
 
 - **Gaps:** every requested date has at least one entry in `data`; dates with no
   Garmin record are `{"calendarDate": ..., "missing": true}`, for every metric.
-- **Empty:** `status: "empty"` means Garmin returned no records for the window. It
-  does not mean the metric is unsupported (hydration, for example, only exists when
-  logged; VO2 max only after qualifying activities).
+- **Status:** `ok` means records were found. `empty` means none in the window.
+  `unknown` (only `hydration` and `vo2max`) means none, and Garmin returns the same
+  empty answer whether nothing was logged or the metric isn't available for the
+  account, so the server can't tell which. The Personal API has no capability
+  endpoint to check, so the server doesn't guess. If `include_nearest` finds
+  records outside the window, the metric clearly works and the status is `empty`.
 - **Partial:** today's entry has `partial: true`; totals are still growing.
 - **Outside the window:** records Garmin adds for other dates (the nearest weigh-ins
   around a `weight` window, a `sleep` night that ends after `end_date`) go in
   `outside_range`.
+- **Nearest records (`include_nearest: true`, for `vo2max`, `weight`, `hrv`):** when
+  the window has no records, the server makes **one** extra Garmin call covering up
+  to 180 days before `start_date` and after `end_date` (capped at one call's limit).
+  It adds the latest earlier record and the earliest later one to `outside_range`,
+  tagged `"nearest": "before"` / `"after"`. Off by default.
 - **Compact by default:** nested event lists and heavy descriptor objects are
-  replaced by a placeholder. Pass `raw: true` for Garmin's full records.
+  replaced by a placeholder. `daily_summaries` rows keep only top-level scalars and
+  the scalar fields of `bodyBattery`, `stress`, `heartRate`, `calories`,
+  `intensityMinutes` and `movement` (including `movement.steps.value` / `goal`).
+  Pass `raw: true` for Garmin's full records.
 - **Stress:** the `stress` series has no "uncategorized" bucket, which is often a
-  large share of the day. `daily_summaries[].stress.uncategorizedProportion` has it.
+  large share of the day. Pass `include_uncategorized: true` to also fetch daily
+  summaries for the same range (31-day chunks) and merge `uncategorizedProportion`
+  (0-1) and `uncategorizedDurationInMillis` into each row's `values`. This costs
+  one extra Garmin call per 31 days.
 - **Steps** in `daily_summaries` are under `movement.steps.value`.
 
 ### Units and timestamps
@@ -244,7 +267,7 @@ uv run uvicorn garmin_mcp.asgi:app --host 0.0.0.0 --port 8000 --proxy-headers
 | Variable | Default | Purpose |
 |---|---|---|
 | `PUBLIC_BASE_URL` | the request's origin | Public origin shown in the landing-page snippets. Set it if your proxy rewrites the host. |
-| `DEFAULT_TIMEZONE` | `UTC` | IANA zone used to decide what "today" means (default dates and the `partial` flag). Set it to your zone: with the `UTC` default, "today" lags users ahead of UTC around local midnight. |
+| `DEFAULT_TIMEZONE` | `UTC` | Fallback IANA zone for "today" (default dates and the `partial` flag) when the caller sends neither a `tz` argument nor an `X-Timezone` header. With `UTC`, "today" lags users ahead of UTC around their local midnight. |
 | `ALLOW_INSECURE_HTTP` | unset | `1` turns off the HTTPS-only gate. Use it only for local development. |
 | `GARMIN_API_KEY` | unset | Used only in stdio mode. |
 

@@ -30,6 +30,10 @@ class MetricSpec:
     drop: frozenset[str] = frozenset()  # heavy keys removed from the compact view
     units: dict[str, str] = field(default_factory=dict)
     note: str | None = None
+    # Garmin answers identically for "nothing logged" and "not supported for this account".
+    ambiguous_empty: bool = False
+    # Sparse metrics where include_nearest may look outside an empty window (one extra call).
+    nearest: bool = False
 
 
 SPECS: dict[str, MetricSpec] = {
@@ -45,8 +49,8 @@ SPECS: dict[str, MetricSpec] = {
         },
         note=(
             "This series has no 'uncategorized' bucket (time Garmin could not score, often a "
-            "large share of the day), so averages can be skewed; daily_summaries[].stress has "
-            "uncategorizedProportion / uncategorizedDurationInMillis."
+            "large share of the day), so averages can be skewed. Pass "
+            "include_uncategorized=true to merge it in from daily summaries."
         ),
     ),
     "body_battery": MetricSpec(
@@ -65,12 +69,14 @@ SPECS: dict[str, MetricSpec] = {
     "hrv": MetricSpec(
         chunk_days=366,
         rows_key="hrvSummaries",
+        nearest=True,
         units={"weeklyAvg / lastNightAvg / lastNight5MinHigh / baseline": "milliseconds"},
     ),
     "weight": MetricSpec(
         chunk_days=366,
         rows_key="dailyWeightSummaries",
         hint_keys=("previousDateWeight", "nextDateWeight"),
+        nearest=True,
         units={
             "weight / minWeight / maxWeight / boneMass / muscleMass": "grams",
             "bmi": "kg/m^2",
@@ -81,11 +87,14 @@ SPECS: dict[str, MetricSpec] = {
     "vo2max": MetricSpec(
         chunk_days=366,
         units={"vo2MaxValue / vo2MaxPreciseValue": "ml/kg/min"},
+        ambiguous_empty=True,
+        nearest=True,
         note="VO2 max is only updated after qualifying activities, so most days are missing.",
     ),
     "hydration": MetricSpec(
         chunk_days=31,
         units={"*InML / value": "milliliters"},
+        ambiguous_empty=True,
         note="Hydration only exists for days where intake was logged in Garmin Connect.",
     ),
     "daily_summaries": MetricSpec(
@@ -138,6 +147,44 @@ def row_date(row: Any, skip: frozenset[str] = frozenset()) -> str | None:
             if d:
                 return d
     return None
+
+
+# daily_summaries compact view: section -> how many object levels to keep. Each keeps only
+# its scalar fields; movement also keeps the scalars of its sub-objects (movement.steps.value,
+# .goal, distance). Everything else in the record (chronology, event lists, feedback
+# descriptors, SpO2/respiration detail) is dropped.
+SUMMARY_SECTIONS = {
+    "bodyBattery": 0,
+    "stress": 0,
+    "heartRate": 0,
+    "movement": 1,
+    "calories": 0,
+    "intensityMinutes": 0,
+}
+
+
+def _scalars(obj: dict[str, Any], depth: int) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for k, v in obj.items():
+        if isinstance(v, dict) and depth > 0:
+            inner = _scalars(v, depth - 1)
+            if inner:
+                out[k] = inner
+        elif not isinstance(v, (dict, list)):
+            out[k] = v
+    return out
+
+
+def compact_daily_summary(row: dict[str, Any]) -> dict[str, Any]:
+    """Top-level scalars plus scalar summaries of the main sections of one daily summary."""
+    out = {k: v for k, v in row.items() if not isinstance(v, (dict, list))}
+    for k, depth in SUMMARY_SECTIONS.items():
+        v = row.get(k)
+        if isinstance(v, dict):
+            out[k] = _scalars(v, depth)
+        elif v is not None and not isinstance(v, list):
+            out[k] = v
+    return out
 
 
 def split_response(spec: MetricSpec, res: Any) -> tuple[list[Any], list[Any]]:
