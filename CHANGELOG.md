@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `AGENTS.md` with build/test commands, layout, tool-authoring steps and hard rules
+  for AI coding agents; `CLAUDE.md` imports it. `.claude/settings.json` pre-approves
+  the uv check commands, blocks reading `.env`/`.secrets/`, and installs dependencies
+  at the start of Claude Code on the web sessions.
+
 ## [0.2.0] - 2026-11-22
 
 ### Added

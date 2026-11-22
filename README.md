@@ -215,7 +215,8 @@ ALLOW_INSECURE_HTTP=1 uv run uvicorn garmin_mcp.asgi:app --port 18790
 BASE=http://localhost:18790 GARMIN_KEY_FILE=/path/to/keyfile uv run scripts/e2e.py
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). For a later move to Garmin's partner
+See [CONTRIBUTING.md](CONTRIBUTING.md). AI coding agents should read
+[AGENTS.md](AGENTS.md). For a later move to Garmin's partner
 OAuth / Health API, see [PLAN-garmin-official-oauth.md](PLAN-garmin-official-oauth.md).
 
 ## License
