@@ -23,7 +23,7 @@ classifiers = [
 ]
 dependencies = [
   "fastmcp==2.14.7",
-  "httpx>=0.27",
+  "httpx>=0.28.1",
   "uvicorn>=0.30",
   "pydantic>=2.7",
   "pydantic-settings>=2.4",
@@ -42,11 +42,11 @@ garmin-mcp = "garmin_mcp.server:main"
 [dependency-groups]
 dev = [
   "black>=25.1",
-  "ruff>=0.14",
-  "mypy>=1.13",
-  "pytest>=8",
+  "ruff>=0.17.5",
+  "mypy>=2.4.1",
+  "pytest>=9.2.0",
   "pytest-cov>=6",
-  "respx>=0.22",
+  "respx>=0.23.1",
   "pre-commit>=4",
 ]
 
