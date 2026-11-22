@@ -3,6 +3,6 @@
 uvicorn garmin_mcp.asgi:app --host 0.0.0.0 --port 8000
 """
 
-from garmin_mcp.server import app
+from .server import app
 
 __all__ = ["app"]

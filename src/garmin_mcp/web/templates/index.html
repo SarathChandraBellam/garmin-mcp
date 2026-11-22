@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Garmin MCP</title>
+<meta name="description" content="Connect your own Garmin Connect data to Claude, Cursor and other MCP clients through Garmin's official Personal API. Stateless, open source, stores nothing.">
+<style>
+$css
+header.top { border-bottom: 1px solid var(--border); background: var(--surface); }
+header.top .wrap { display: flex; align-items: center; justify-content: space-between; height: 60px; }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -.01em; color: var(--text); }
+.brand:hover { text-decoration: none; }
+.logo { width: 28px; height: 28px; border-radius: 8px; background: var(--accent); display: grid; place-items: center; }
+.logo svg { width: 18px; height: 18px; }
+nav a { color: var(--muted); margin-left: 20px; font-weight: 500; font-size: 15px; }
+.hero { padding: 72px 0 40px; }
+.hero h1 { font-size: clamp(34px, 6vw, 56px); line-height: 1.05; letter-spacing: -.03em; margin: 16px 0; max-width: 16ch; }
+.hero p.lead { font-size: 19px; color: var(--muted); max-width: 60ch; margin: 0 0 28px; }
+.endpoint { display: flex; gap: 8px; align-items: stretch; max-width: 640px; }
+.endpoint code { flex: 1; min-width: 0; display: flex; align-items: center; padding: 12px 14px; border-radius: 10px; background: var(--surface); border: 1px solid var(--border); overflow-x: auto; white-space: nowrap; font-size: 15px; }
+.cta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+section { padding: 40px 0; }
+section h2 { font-size: 28px; letter-spacing: -.02em; margin: 0 0 8px; }
+section > .wrap > p.sub { color: var(--muted); margin: 0 0 24px; max-width: 70ch; }
+.grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.step { padding: 22px; }
+.step .n { width: 30px; height: 30px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); font-weight: 800; display: grid; place-items: center; margin-bottom: 12px; }
+.step h3 { margin: 0 0 6px; font-size: 18px; }
+.step p { margin: 0; color: var(--muted); font-size: 15px; }
+.guide { display: grid; grid-template-columns: 1.1fr .9fr; gap: 16px; }
+.guide ol { margin: 0; padding: 22px 22px 22px 44px; }
+.guide li { margin: 0 0 14px; }
+.guide li:last-child { margin-bottom: 0; }
+.guide aside { padding: 22px; }
+.guide aside h3 { margin: 0 0 8px; font-size: 16px; }
+.guide aside ul { margin: 0; padding-left: 18px; color: var(--muted); font-size: 15px; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.tabs button { font: inherit; font-size: 14px; font-weight: 600; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); cursor: pointer; }
+.tabs button[aria-selected="true"] { background: var(--text); color: var(--bg); border-color: var(--text); }
+.panel { padding: 20px; }
+.panel p { margin: 0 0 12px; }
+.panel p:last-child { margin: 12px 0 0; }
+.snippet { position: relative; }
+.snippet .copy { position: absolute; top: 8px; right: 8px; padding: 4px 10px; font-size: 12px; background: #1f2a37; color: #e6edf3; border-color: #2c3a4b; }
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+td code { white-space: nowrap; }
+.table-wrap { overflow-x: auto; }
+.trust { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.trust .card { padding: 22px; }
+.trust h3 { margin: 0 0 6px; font-size: 17px; }
+.trust p { margin: 0; color: var(--muted); font-size: 15px; }
+footer { border-top: 1px solid var(--border); padding: 28px 0 48px; color: var(--muted); font-size: 14px; }
+footer p { margin: 0 0 8px; max-width: 80ch; }
+@media (max-width: 760px) {
+  .grid3, .guide, .trust { grid-template-columns: 1fr; }
+  nav a.hide-sm { display: none; }
+  .hero { padding: 48px 0 24px; }
+  .endpoint { flex-direction: column; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="/">
+      <span class="logo" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></span>
+      garmin-mcp
+    </a>
+    <nav>
+      <a class="hide-sm" href="#api-key">API key</a>
+      <a class="hide-sm" href="#connect">Connect</a>
+      <a class="hide-sm" href="#tools">Tools</a>
+      <a href="https://github.com/SarathChandraBellam/garmin-mcp">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="wrap">
+      <span class="pill">MCP server &middot; v$version</span>
+      <h1>Your Garmin data, inside your AI assistant.</h1>
+      <p class="lead">Ask Claude, Cursor or any MCP client about your sleep, training, heart rate and daily stats.
+        This server uses Garmin's official <strong>Personal API</strong> and your own key. It is stateless and stores nothing.</p>
+      <div class="endpoint">
+        <code id="mcp-url">$mcp_url</code>
+        <button class="btn primary" data-copy="#mcp-url">Copy MCP URL</button>
+      </div>
+      <div class="cta">
+        <a class="btn" href="#api-key">Get your API key &rarr;</a>
+        <a class="btn" href="#connect">Connect a client</a>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <div class="wrap">
+      <h2>How it works</h2>
+      <p class="sub">Three steps, about two minutes. You need no password and no database, and nobody else holds your key.</p>
+      <div class="grid3">
+        <div class="card step"><div class="n">1</div><h3>Create a key</h3><p>Create a Personal API key in Garmin Connect. You choose how long it lasts and can revoke it at any time.</p></div>
+        <div class="card step"><div class="n">2</div><h3>Add the server</h3><p>Point your MCP client at <code>/mcp</code>. It signs in with OAuth, and you paste your key once on a consent page.</p></div>
+        <div class="card step"><div class="n">3</div><h3>Ask away</h3><p>"How did I sleep this week?" "Compare my resting HR to last month." Each call fetches live from Garmin.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="api-key">
+    <div class="wrap">
+      <h2>Get your Garmin Personal API key</h2>
+      <p class="sub">Garmin offers a self-serve Personal API, so you can read your own health and activity data with a key you create.</p>
+      <div class="guide">
+        <ol class="card">
+          <li>Sign in to <a href="https://connect.garmin.com/" rel="noopener">Garmin Connect</a> on the web with the account that your watch syncs to.</li>
+          <li>Open <a href="https://connect.garmin.com/app/settings/personalApiToken" rel="noopener"><strong>Settings &rarr; Personal API Key</strong></a>.</li>
+          <li>Click <strong>Create Key</strong>, read and accept Garmin's Personal API terms, and choose an expiry: 30, 90, 180 or 365 days.</li>
+          <li><strong>Copy the key now.</strong> Garmin shows it only once. Store it in a password manager.</li>
+          <li>Connect a client (below). When the browser opens this server's consent page, paste the key and click <strong>Allow</strong>.</li>
+        </ol>
+        <aside class="card">
+          <h3>Good to know</h3>
+          <ul>
+            <li>Treat the key like a password. Anyone who has it can read your Garmin data.</li>
+            <li>To revoke the key, open the same settings page. Every token made from it stops working.</li>
+            <li>When the key expires, create a new one and reconnect your client.</li>
+            <li>Some metrics, such as Training Readiness and Training Status, are not in the Personal API.</li>
+          </ul>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <section id="connect">
+    <div class="wrap">
+      <h2>Connect your client</h2>
+      <p class="sub">Clients that support MCP OAuth find the sign-in by themselves. Older clients can send the key in a header instead.</p>
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="true" data-tab="t-claude">Claude</button>
+        <button role="tab" aria-selected="false" data-tab="t-code">Claude Code</button>
+        <button role="tab" aria-selected="false" data-tab="t-cursor">Cursor</button>
+        <button role="tab" aria-selected="false" data-tab="t-vscode">VS Code</button>
+        <button role="tab" aria-selected="false" data-tab="t-header">Header (no OAuth)</button>
+      </div>
+      <div class="card panel" id="t-claude" role="tabpanel">
+        <p>In Claude, open <strong>Settings &rarr; Connectors &rarr; Add custom connector</strong> and enter this URL:</p>
+        <div class="snippet"><pre id="s1">$mcp_url</pre><button class="btn copy" data-copy="#s1">Copy</button></div>
+        <p class="muted">Claude opens the consent page. Paste your Garmin key there and click Allow.</p>
+      </div>
+      <div class="card panel" id="t-code" role="tabpanel" hidden>
+        <div class="snippet"><pre id="s2">claude mcp add --transport http garmin $mcp_url</pre><button class="btn copy" data-copy="#s2">Copy</button></div>
+        <p class="muted">Then run <code>/mcp</code> in Claude Code and choose <strong>Authenticate</strong>.</p>
+      </div>
+      <div class="card panel" id="t-cursor" role="tabpanel" hidden>
+        <p>Add this to <code>~/.cursor/mcp.json</code>:</p>
+        <div class="snippet"><pre id="s3">{
+  "mcpServers": {
+    "garmin": { "url": "$mcp_url" }
+  }
+}</pre><button class="btn copy" data-copy="#s3">Copy</button></div>
+      </div>
+      <div class="card panel" id="t-vscode" role="tabpanel" hidden>
+        <p>Add this to <code>.vscode/mcp.json</code>:</p>
+        <div class="snippet"><pre id="s4">{
+  "servers": {
+    "garmin": { "type": "http", "url": "$mcp_url" }
+  }
+}</pre><button class="btn copy" data-copy="#s4">Copy</button></div>
+      </div>
+      <div class="card panel" id="t-header" role="tabpanel" hidden>
+        <p>Send your key on every request with <code>X-Garmin-Api-Key</code> (or <code>Authorization: Bearer &lt;key&gt;</code>):</p>
+        <div class="snippet"><pre id="s5">{
+  "mcpServers": {
+    "garmin": {
+      "url": "$mcp_url",
+      "headers": { "X-Garmin-Api-Key": "&lt;your key&gt;" }
+    }
+  }
+}</pre><button class="btn copy" data-copy="#s5">Copy</button></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tools">
+    <div class="wrap">
+      <h2>Tools</h2>
+      <p class="sub">All tools are read-only. Dates are <code>YYYY-MM-DD</code>. Coordinates and owner profile fields are removed from the output.</p>
+      <div class="card table-wrap">
+        <table>
+          <thead><tr><th>Tool</th><th>What it returns</th></tr></thead>
+          <tbody>
+$tools_rows
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <h2>Privacy and security</h2>
+      <div class="trust">
+        <div class="card"><h3>Stores nothing</h3><p>There is no database. Your key is encrypted inside the OAuth token that your client holds. The server decrypts it for each request and then discards it.</p></div>
+        <div class="card"><h3>Standard MCP auth</h3><p>OAuth 2.1 with PKCE, dynamic client registration and protected-resource metadata, as the MCP authorization spec requires.</p></div>
+        <div class="card"><h3>Official API only</h3><p>The server uses Garmin's Personal API. It does not ask for your password and does not scrape data.</p></div>
+        <div class="card"><h3>Open source</h3><p>The code is MIT licensed. You can run it yourself or read exactly what it does <a href="https://github.com/SarathChandraBellam/garmin-mcp">on GitHub</a>.</p></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>This project is not affiliated with, endorsed by, or sponsored by Garmin Ltd. or its subsidiaries. "Garmin" and "Garmin Connect" are trademarks of Garmin.
+      By using this server you agree to <a href="https://www.garmin.com/legal/" rel="noopener">Garmin's terms</a> and the Personal API terms shown when you create a key.</p>
+    <p>MCP endpoint <code>/mcp</code> &middot; <a href="/info">/info</a> &middot; <a href="/.well-known/oauth-authorization-server">OAuth metadata</a> &middot; <a href="/healthz">/healthz</a></p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  document.querySelectorAll("[data-copy]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var el = document.querySelector(btn.getAttribute("data-copy"));
+      var text = el ? el.textContent : "";
+      var label = btn.textContent;
+      var done = function () { btn.textContent = "Copied"; setTimeout(function () { btn.textContent = label; }, 1400); };
+      if (navigator.clipboard) { navigator.clipboard.writeText(text).then(done, function () {}); }
+    });
+  });
+  var tabs = document.querySelectorAll("[data-tab]");
+  tabs.forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      tabs.forEach(function (t) {
+        var on = t === tab;
+        t.setAttribute("aria-selected", on ? "true" : "false");
+        document.getElementById(t.getAttribute("data-tab")).hidden = !on;
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

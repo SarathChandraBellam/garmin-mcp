@@ -4,10 +4,18 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import time
 
-import pytest
-from garmin_mcp import garmin
+# Deterministic settings before any garmin_mcp import.
+os.environ.setdefault("ALLOW_INSECURE_HTTP", "1")
+os.environ.setdefault("DEFAULT_TIMEZONE", "UTC")
+os.environ.setdefault("GARMIN_MCP_SECRET", "test-secret-not-for-production")
+os.environ.setdefault("PUBLIC_BASE_URL", "http://localhost")
+
+import pytest  # noqa: E402
+
+from garmin_mcp.sdk import token  # noqa: E402
 
 
 def fake_jwt(exp: float | None = None) -> str:
@@ -22,6 +30,6 @@ def fake_jwt(exp: float | None = None) -> str:
 
 @pytest.fixture(autouse=True)
 def _reset_token_cache():
-    garmin._cache = garmin._TokenCache()
+    token.cache.clear()
     yield
-    garmin._cache = garmin._TokenCache()
+    token.cache.clear()

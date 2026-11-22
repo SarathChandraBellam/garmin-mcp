@@ -2,7 +2,7 @@
 """Live end-to-end check against a running server. Never prints the key.
 
 Usage:
-    BASE=https://... GARMIN_KEY_FILE=/path/to/keyfile python scripts/e2e.py
+    BASE=https://... GARMIN_KEY_FILE=/path/to/keyfile uv run scripts/e2e.py
 
 This is opt-in and is not run by CI or a default `pytest` invocation.
 """
@@ -52,8 +52,8 @@ def main() -> int:
     }
     r = rpc("initialize", init)
     check(
-        r.status_code == 401 and r.json()["error"] == "missing_garmin_api_key",
-        f"no key -> {r.status_code} {r.json().get('error')}",
+        r.status_code == 401 and "resource_metadata=" in r.headers.get("www-authenticate", ""),
+        f"no key -> {r.status_code} {r.headers.get('www-authenticate')}",
     )
     r = rpc("tools/list", headers={"x-garmin-api-key": "not-a-real-key"})
     check(r.status_code == 401, f"bogus key -> {r.status_code} {r.json().get('error')}")

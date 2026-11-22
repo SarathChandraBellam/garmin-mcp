@@ -7,8 +7,8 @@
   bearer token, held in memory only. Stateless, multi-tenant, nothing stored.
 * **Limits:** keys expire (≤ 1 year) and must be re-created by each user; some metrics
   (Training Readiness / Training Status) are not exposed; pull-only (no push).
-* Swap point: `garmin_mcp/garmin.py` (`GarminSource` protocol / `PersonalApi`). Tools in
-  `server.py` only call the source's typed helpers, so a new source is a drop-in class.
+* Swap point: `src/garmin_mcp/sdk/client.py` (`GarminSource` protocol / `PersonalApi`). Tools in
+  `src/garmin_mcp/tools/` only call the source's typed helpers, so a new source is a drop-in class.
 
 ## Target: Garmin Connect Developer Program (Health API + Activity API)
 
@@ -50,20 +50,10 @@ and access to the evaluation environment.
 5. **Selection:** `GARMIN_SOURCE=personal|health` env var; header decides per request
    (`X-Garmin-Api-Key` → Personal API, `Authorization: Bearer <oauth token>` → Health API).
 
-### Optional: OAuth for the MCP endpoint itself (without Garmin partner access)
+### Done: OAuth for the MCP endpoint itself (without Garmin partner access)
 
-If we ever want MCP clients to log in instead of pasting a key, we can add a tiny self-issued
-OAuth 2.1 layer with FastMCP auth (`OAuthProvider` subclass): stateless signed-JWT client IDs
-(DCR), authorization codes and access tokens; PKCE S256; scope `garmin:read`; consent page where
-the user pastes their Garmin Personal API key, which is sealed (AES-GCM, server key) *inside* the
-issued access token — so the server still stores nothing. Not built now because the header key
-already gives per-user auth with less moving parts.
-
-### Work items once approved
-
-- [ ] Register redirect URIs (MCP client callbacks + our proxy callback) with Garmin.
-- [ ] Store Garmin consumer key/secret as encrypted / sensitive environment variables on the host.
-- [ ] Implement `GarminHealthApi`, field mapping, and per-type pull windows.
-- [ ] FastMCP `OAuthProxy` with stateless storage; e2e test for discovery → consent → token → tools.
-- [ ] Ping/push endpoint that never persists payloads (if required by Garmin).
-- [ ] Complete Garmin's production review (branding, privacy policy, user deregistration webhook).
+Shipped in 0.2.0 (`src/garmin_mcp/auth/`): a self-issued, stateless OAuth 2.1 layer built on
+FastMCP's `OAuthProvider`. Client ids (DCR), authorization codes and access/refresh tokens are
+AES-GCM sealed blobs; PKCE S256; scope `garmin:read`; the consent page asks for the user's Garmin
+Personal API key, which is sealed inside the issued tokens. A Health API source would replace the
+consent step with a redirect to Garmin's own OAuth, keeping the same MCP-facing flow.

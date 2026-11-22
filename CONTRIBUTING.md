@@ -8,22 +8,22 @@ clone to a reviewable pull request.
 ```bash
 git clone https://github.com/SarathChandraBellam/garmin-mcp.git
 cd garmin-mcp
-python3 -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
-pip install -e ".[dev]"
-pre-commit install
+uv sync
+uv run pre-commit install
 ```
 
 ## Checks (same as CI)
 
 ```bash
-ruff check .
-ruff format --check .
-mypy garmin_mcp
-pytest
+uv run black --check .
+uv run ruff check .
+uv run mypy
+uv run pytest
 ```
 
-`ruff format .` will fix formatting. Unit tests mock Garmin and **do not**
+`uv run black .` fixes formatting and `uv run ruff check --fix .` fixes the lint
+issues that ruff can fix by itself. Add dependencies with `uv add <pkg>` (or
+`uv add --dev <pkg>`) so `uv.lock` stays in sync. Unit tests mock Garmin and **do not**
 need a Personal API key. Do not commit real keys, tokens, `.env` files, or
 live activity/sleep samples — use synthetic fixtures only.
 
@@ -32,8 +32,8 @@ live activity/sleep samples — use synthetic fixtures only.
 Against a running server and your own key (never commit the key file):
 
 ```bash
-uvicorn garmin_mcp.asgi:app --port 18790
-BASE=http://localhost:18790 GARMIN_KEY_FILE=/path/to/keyfile python scripts/e2e.py
+ALLOW_INSECURE_HTTP=1 uv run uvicorn garmin_mcp.asgi:app --port 18790
+BASE=http://localhost:18790 GARMIN_KEY_FILE=/path/to/keyfile uv run scripts/e2e.py
 ```
 
 Or `RUN_E2E=1 BASE=... GARMIN_KEY_FILE=... pytest -m e2e` once a live test is

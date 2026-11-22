@@ -1,12 +1,12 @@
 [project]
 name = "garmin-mcp"
-version = "0.1.0"
-description = "Stateless, bring-your-own-key MCP server for Garmin Connect (Personal API, FastMCP 2.x)"
+version = "0.2.0"
+description = "Stateless, bring-your-own-key MCP server for Garmin Connect (Personal API, OAuth 2.1, FastMCP 2.x)"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Sarath Chandra Bellam" }]
 requires-python = ">=3.10"
-keywords = ["mcp", "garmin", "fastmcp", "model-context-protocol", "fitness"]
+keywords = ["mcp", "garmin", "fastmcp", "model-context-protocol", "fitness", "oauth"]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Environment :: Console",
@@ -21,18 +21,13 @@ classifiers = [
   "Topic :: Scientific/Engineering",
   "Typing :: Typed",
 ]
-dependencies = ["fastmcp==2.14.7", "httpx>=0.27", "uvicorn>=0.30"]
-
-[project.optional-dependencies]
-dev = [
+dependencies = [
   "fastmcp==2.14.7",
   "httpx>=0.27",
-  "ruff>=0.8",
-  "mypy>=1.13",
-  "pytest>=8",
-  "pytest-cov>=6",
-  "respx>=0.22",
-  "pre-commit>=4",
+  "uvicorn>=0.30",
+  "pydantic>=2.7",
+  "pydantic-settings>=2.4",
+  "cryptography>=43",
 ]
 
 [project.urls]
@@ -45,28 +40,50 @@ Changelog = "https://github.com/SarathChandraBellam/garmin-mcp/blob/main/CHANGEL
 [project.scripts]
 garmin-mcp = "garmin_mcp.server:main"
 
+[dependency-groups]
+dev = [
+  "black>=25.1",
+  "ruff>=0.14",
+  "mypy>=1.13",
+  "pytest>=8",
+  "pytest-cov>=6",
+  "respx>=0.22",
+  "pre-commit>=4",
+]
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["garmin_mcp"]
+packages = ["src/garmin_mcp"]
+
+[tool.uv]
+default-groups = ["dev"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
 
 [tool.ruff]
 target-version = "py310"
 line-length = 100
-src = ["garmin_mcp", "api", "tests", "scripts"]
+src = ["src", "tests", "scripts"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["garmin_mcp", "tests"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/test_server.py" = ["E402"]
 
 [tool.mypy]
 python_version = "3.10"
-packages = ["garmin_mcp"]
+files = ["src/garmin_mcp"]
+mypy_path = "src"
 warn_unused_ignores = true
 ignore_missing_imports = true
 check_untyped_defs = true
@@ -75,6 +92,7 @@ pretty = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["."]
 addopts = "-q --strict-markers"
 filterwarnings = [
   "ignore:authlib.jose module is deprecated",

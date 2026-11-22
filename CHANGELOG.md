@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-22
+
+### Added
+
+- MCP authorization (OAuth 2.1): authorization code + PKCE S256, Dynamic Client
+  Registration, protected-resource and authorization-server metadata, resource
+  indicators and refresh tokens. A consent page at `/oauth/consent` asks for the
+  user's Garmin Personal API key. Every artefact is an AES-GCM sealed blob, so the
+  server is still stateless. Raw keys via `X-Garmin-Api-Key` or `Bearer` still work.
+- Product landing page at `/` with a guide to getting a Garmin Personal API key
+  and client setup snippets. The JSON info that `/` used to return is now at `/info`.
+- Settings in one place (`pydantic-settings`): `PUBLIC_BASE_URL`,
+  `GARMIN_MCP_SECRET`, `ACCESS_TOKEN_TTL_SECONDS`, `REFRESH_TOKEN_TTL_SECONDS`.
+
+### Changed
+
+- The project now uses uv (`uv.lock`, dependency groups) and a `src/` layout split
+  into `contracts/` (pydantic), `sdk/`, `tools/`, `auth/` and `web/`.
+  `requirements.txt` is removed.
+- Formatting moved from `ruff format` to black. Ruff is now used for linting only.
+  CI and pre-commit run black, ruff, mypy and pytest through `uv run`.
+- An unauthenticated `/mcp` request now gets `401` with a
+  `WWW-Authenticate: Bearer resource_metadata=…` challenge and an `invalid_token`
+  error body, as the MCP spec requires.
+
 ## [0.1.0] - 2026-11-22
 
 ### Added
@@ -24,5 +49,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   plan for a later official Garmin OAuth / Health API source
   (`PLAN-garmin-official-oauth.md`).
 
-[Unreleased]: https://github.com/SarathChandraBellam/garmin-mcp/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/SarathChandraBellam/garmin-mcp/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/SarathChandraBellam/garmin-mcp/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/SarathChandraBellam/garmin-mcp/releases/tag/v0.1.0
