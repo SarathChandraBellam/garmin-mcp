@@ -1,0 +1,28 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+## [0.1.0] - 2026-11-22
+
+### Added
+
+- Stateless MCP server built with FastMCP 2.x (Streamable HTTP,
+  `stateless_http=True`, JSON responses, MCP spec 2025-06-18).
+- Garmin Connect Personal API as the data source, with a bring-your-own-key
+  model (`X-Garmin-Api-Key` or `Authorization: Bearer`, or `GARMIN_API_KEY`
+  for stdio). The server stores no keys and no fitness data.
+- Read-only tools: `get_profile`, `get_activities`, `get_activity`,
+  `get_daily_summary`, `get_sleep`, `get_heart_rate`, `get_hrv`,
+  `get_body_composition`, `get_spo2`, `get_fitness_age`,
+  `get_heart_rate_zones`, `get_training_readiness`, and `query_stats`.
+- Generic ASGI entry point (`garmin_mcp.asgi:app`) for self-hosting, and a
+  plan for a later official Garmin OAuth / Health API source
+  (`PLAN-garmin-official-oauth.md`).
+
+[Unreleased]: https://github.com/SarathChandraBellam/garmin-mcp/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/SarathChandraBellam/garmin-mcp/releases/tag/v0.1.0

@@ -1,0 +1,43 @@
+name: Bug report
+description: Something is not working as expected
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. **Do not** paste a Garmin Personal API key, access token, or real fitness data.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you expect, and what actually happened?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: Steps, MCP client, and a sanitized request (synthetic dates/IDs only).
+      placeholder: |
+        1. Configure the client with a key header
+        2. Call get_activities with ...
+        3. See error ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Package version, git SHA, or deployment URL (no secrets in query strings).
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      description: "e.g. Cursor / Claude Desktop / uvicorn on Python 3.13, or a self-hosted ASGI deployment"
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Paste sanitised logs only. Redact headers and tokens.
