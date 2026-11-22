@@ -81,7 +81,8 @@ Also cover the empty case (204 → note) when the tool has one.
 ## 5. Docs
 
 - Add a row to the **Tools** table in `README.md`.
-- Add an entry under `## [Unreleased]` → `### Added` (or `### Changed`) in `CHANGELOG.md`.
+- Title the PR `feat: add <tool name> tool` (or `fix:` / `feat!:` for changes; see the
+  `release` skill). Don't edit `CHANGELOG.md`; release-please generates it from the title.
 
 ## 6. Verify
 

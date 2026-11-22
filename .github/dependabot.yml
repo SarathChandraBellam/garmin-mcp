@@ -1,13 +1,21 @@
 version: 2
 updates:
+  # Conventional Commit titles for release-please:
+  # runtime deps -> "deps: ..." (patch release, "Dependencies" section),
+  # dev deps -> "chore: ..." and Actions -> "ci: ..." (no release).
   - package-ecosystem: uv
     directory: /
     schedule:
       interval: weekly
     labels: [dependencies]
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: deps
+      prefix-development: chore
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
     labels: [dependencies]
+    commit-message:
+      prefix: ci

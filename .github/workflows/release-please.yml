@@ -1,0 +1,54 @@
+name: Release Please
+
+# On every push to main, release-please opens or updates a release PR
+# ("chore: release X.Y.Z") when feat/fix/perf/deps/revert commits are pending.
+# Merging that PR tags vX.Y.Z and creates the GitHub release; the build job then
+# attaches the wheel and sdist. Configuration: release-please-config.json.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - id: release
+        uses: googleapis/release-please-action@v5
+        with:
+          # PRs and tags created with the default token don't trigger other
+          # workflows (so CI won't run on the release PR). Set a RELEASE_TOKEN
+          # secret (fine-grained PAT or GitHub App token with contents and pull
+          # requests write) to fix that.
+          token: ${{ secrets.RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+
+  build:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG: ${{ needs.release-please.outputs.tag_name }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+      - name: Build
+        run: uv build
+      - name: Attach to the GitHub release
+        run: gh release upload "$TAG" dist/*
